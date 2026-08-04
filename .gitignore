@@ -1,0 +1,100 @@
+# =============================================================================
+# Herbert — root .gitignore
+# Covers artifacts from all three components: /mod (Java/Gradle), /nn (Python),
+# and /bot (Python/Docker). Component-local .gitignore files may add
+# component-specific entries, but this root file is the primary safety net.
+# =============================================================================
+
+# --- Java / Gradle (mod/) ---------------------------------------------------
+.gradle/
+**/build/
+**/bin/
+!**/src/**/bin/
+out/
+*.class
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
+.gradletasknamecache
+eclipse/
+.project
+.classpath
+.settings/
+*.launch
+run/
+runs/**/*.log
+
+# --- IDE ---------------------------------------------------------------------
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+*.swp
+*.swo
+*~
+
+# --- Python (nn/, bot/) -------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+.Python
+.venv/
+venv/
+env/
+ENV/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.tox/
+.coverage
+.coverage.*
+htmlcov/
+dist/
+build/
+pip-wheel-metadata/
+
+# --- Herbert-nn specific (data & training artifacts) --------------------------
+nn/data/
+nn/runs/
+*.pt
+*.pt.gz
+*.ckpt
+*.onnx
+wandb/
+
+# --- Node (in case tooling/docs pull in JS deps) -------------------------------
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+.pnp/
+.pnp.js
+
+# --- Secrets / environment -----------------------------------------------------
+.env
+.env.*
+!.env.example
+*.token
+secrets.json
+
+# --- OS cruft --------------------------------------------------------------
+.DS_Store
+Thumbs.db
+
+# --- Herbert mod local logs/config (generated at runtime, not source) ---------
+mod/run/
+mod/**/herbert_logs/
+
+# --- /bot is a PRIVATE, unpublished component of this project (project policy) -
+# It holds bot-token-adjacent operational logic and the anti-abuse/data-quality
+# validation internals for the intake pipeline; publishing it would make it
+# easier to craft submissions that evade moderation. It must never be committed
+# to the public repository. See bot/README.md for the full policy explanation.
+/bot/
+# Defense in depth in case /bot is ever restructured to a different path:
+/bot/.env
+/bot/data/
+skins/

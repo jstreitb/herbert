@@ -1,0 +1,103 @@
+"""End-to-end preprocessing cache tests: raw JSONL -> normalized, cached tensors.
+
+Exercises herbert_nn.data.cache against the synthetic ``raw_session_dir``
+fixture (6 sessions x 60 ticks each; see tests/conftest.py).
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from herbert_nn.data.cache import build_or_load_cache
+from herbert_nn.data.config import PreprocessConfig
+from herbert_nn.data.dataset import build_dataset
+
+
+def _base_config(raw_dir: Path, cache_dir: Path, **overrides) -> PreprocessConfig:
+    kwargs = {
+        "raw_dir": str(raw_dir),
+        "cache_dir": str(cache_dir),
+        "window_length": 8,
+        "window_stride": 1,
+        "train_ratio": 0.7,
+        "val_ratio": 0.15,
+        "test_ratio": 0.15,
+        "split_seed": 0,
+        "item_type_vocab_size": 16,
+        "kit_type_vocab_size": 8,
+        "place_block_type_vocab_size": 8,
+    }
+    kwargs.update(overrides)
+    return PreprocessConfig(**kwargs)
+
+
+def test_build_cache_produces_all_splits_with_no_session_overlap(
+    raw_session_dir: Path, tmp_path: Path
+) -> None:
+    config = _base_config(raw_session_dir, tmp_path / "cache")
+    bundle = build_or_load_cache(config)
+
+    train_ids = set(bundle.manifest.split_session_ids["train"])
+    val_ids = set(bundle.manifest.split_session_ids["val"])
+    test_ids = set(bundle.manifest.split_session_ids["test"])
+    assert train_ids & val_ids == set()
+    assert train_ids & test_ids == set()
+    assert val_ids & test_ids == set()
+    assert train_ids | val_ids | test_ids == {f"session-{i:02d}" for i in range(6)}
+
+    for split in ("train", "val", "test"):
+        tensors = bundle.load_split(split)
+        assert tensors["continuous"].shape[0] == bundle.manifest.counts[split]
+        assert tensors["continuous"].shape[1] > 0
+
+
+def test_cache_is_reused_on_identical_rerun(raw_session_dir: Path, tmp_path: Path) -> None:
+    config = _base_config(raw_session_dir, tmp_path / "cache")
+    bundle1 = build_or_load_cache(config)
+    bundle2 = build_or_load_cache(config)
+    assert bundle1.cache_path == bundle2.cache_path
+    assert bundle1.manifest.config_hash == bundle2.manifest.config_hash
+
+
+def test_cache_invalidated_by_config_change(raw_session_dir: Path, tmp_path: Path) -> None:
+    cache_dir = tmp_path / "cache"
+    config_a = _base_config(raw_session_dir, cache_dir, window_length=8)
+    config_b = _base_config(raw_session_dir, cache_dir, window_length=16)
+    bundle_a = build_or_load_cache(config_a)
+    bundle_b = build_or_load_cache(config_b)
+    assert bundle_a.cache_path != bundle_b.cache_path
+
+
+def test_normalization_stats_come_from_train_split_only(
+    raw_session_dir: Path, tmp_path: Path
+) -> None:
+    import numpy as np
+
+    config = _base_config(raw_session_dir, tmp_path / "cache")
+    bundle = build_or_load_cache(config)
+    train_tensors = bundle.load_split("train")
+    # The standardized training continuous features should have ~zero mean.
+    train_continuous = train_tensors["continuous"].numpy()
+    assert np.allclose(train_continuous.mean(axis=0), 0.0, atol=0.2)
+
+
+def test_window_and_tick_datasets_buildable_from_cache(
+    raw_session_dir: Path, tmp_path: Path
+) -> None:
+    config = _base_config(raw_session_dir, tmp_path / "cache", window_length=8)
+    bundle = build_or_load_cache(config)
+
+    train_tensors = bundle.load_split("train")
+    boundaries = bundle.manifest.split_boundaries["train"]
+
+    tick_dataset = build_dataset(train_tensors, boundaries, "mlp")
+    assert len(tick_dataset) == train_tensors["continuous"].shape[0]
+    sample = tick_dataset[0]
+    assert sample["continuous"].shape[0] == train_tensors["continuous"].shape[1]
+
+    window_dataset = build_dataset(
+        train_tensors, boundaries, "gru", window_length=8, window_stride=1
+    )
+    assert len(window_dataset) > 0
+    window_sample = window_dataset[0]
+    assert window_sample["continuous"].shape[0] == 8

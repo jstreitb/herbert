@@ -1,0 +1,15 @@
+# Example experiment config demonstrating Hydra config composition.
+#
+# Usage:
+#   python -m herbert_nn.train +experiment=gru_baseline
+#
+# @package _global_
+defaults:
+  - override /model: gru
+
+experiment_name: gru_baseline
+data:
+  window_length: 48
+training:
+  batch_size: 128
+  epochs: 30

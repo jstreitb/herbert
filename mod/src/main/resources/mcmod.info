@@ -1,0 +1,16 @@
+[
+{
+  "modid": "bridgelogger",
+  "name": "BridgeLogger",
+  "description": "Passive, observational data logger for Hypixel Bridge duels, built for the Herbert project (imitation learning for Hypixel Bridge). Records synchronized player-state, block-environment, opponent-state, and input data at fixed tick resolution during a duel, then uploads the session log to pastes.dev and posts the link to a configured Discord webhook. Never sends game packets, never simulates input, and never automates any game action — purely observational logging for community training-data collection.",
+  "version": "${version}",
+  "mcversion": "${mcversion}",
+  "url": "https://github.com/herbert-project/herbert",
+  "updateUrl": "",
+  "authorList": ["Herbert project contributors"],
+  "credits": "Built for the open-source Herbert project (Hypixel Bridge imitation learning).",
+  "logoFile": "",
+  "screenshots": [],
+  "dependencies": []
+}
+]

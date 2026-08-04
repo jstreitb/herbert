@@ -1,0 +1,99 @@
+// BridgeLogger (Herbert project) — Forge 1.8.9 build script.
+//
+// Uses the legacy ForgeGradle 2.x "net.minecraftforge.gradle.forge" plugin, which is the
+// correct/only ForgeGradle generation that supports Minecraft 1.8.9. Requires JDK 8 (the
+// Minecraft/Forge 1.8.9 toolchain does not support compiling/running with newer major JDK
+// versions for the actual game runtime, even though this script itself may be invoked by a
+// newer Gradle-bundled JVM in some setups).
+
+buildscript {
+    repositories {
+        mavenCentral()
+        maven { url = "https://files.minecraftforge.net/maven" }
+    }
+    dependencies {
+        classpath group: 'net.minecraftforge.gradle', name: 'ForgeGradle', version: '2.1-SNAPSHOT', changing: true
+    }
+}
+
+apply plugin: 'net.minecraftforge.gradle.forge'
+
+version = mod_version
+group = mod_group
+archivesBaseName = mod_id
+
+sourceCompatibility = JavaVersion.VERSION_1_8
+targetCompatibility = JavaVersion.VERSION_1_8
+
+// Ensure javac is told explicitly, even if the invoking JDK is newer than 8; ForgeGradle's own
+// Minecraft toolchain handling additionally needs the build to actually run under a JDK 8
+// *runtime* to decompile/recompile Minecraft — see README.md for setup notes.
+tasks.withType(JavaCompile) {
+    options.encoding = 'UTF-8'
+}
+
+minecraft {
+    version = "${minecraft_version}-${forge_version}"
+    runDir = "run"
+
+    // MCP mappings snapshot commonly used for 1.8.9 development.
+    mappings = mappings_version
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // Gson and java.net.HttpURLConnection both already ship with the Minecraft/Forge runtime,
+    // so BridgeLogger intentionally declares no additional runtime dependencies here.
+}
+
+// Inject webhook URL from webhook.txt (local build-time config, never committed).
+// Reads webhook.txt if it exists and generates webhook.properties resource for HerbertConfig.
+task injectWebhook {
+    doLast {
+        def webhookFile = file('webhook.txt')
+        def webhookPropertiesFile = file('src/main/resources/webhook.properties')
+
+        if (webhookFile.exists()) {
+            def webhookUrl = webhookFile.text.trim()
+            if (webhookUrl) {
+                webhookPropertiesFile.parentFile.mkdirs()
+                webhookPropertiesFile.text = "discordWebhookUrl=${webhookUrl}\n"
+                println("Injected webhook URL from webhook.txt into webhook.properties")
+            }
+        } else {
+            // If webhook.txt doesn't exist, create an empty webhook.properties
+            webhookPropertiesFile.parentFile.mkdirs()
+            webhookPropertiesFile.text = "# Webhook URL not configured (webhook.txt was not found)\ndiscordWebhookUrl=\n"
+            println("webhook.txt not found; webhook.properties will use empty webhook URL")
+        }
+    }
+}
+
+processResources {
+    dependsOn injectWebhook
+    inputs.property "version", project.version
+    inputs.property "mcversion", project.minecraft.version
+
+    from(sourceSets.main.resources.srcDirs) {
+        include 'mcmod.info'
+        expand 'version': project.version, 'mcversion': project.minecraft.version
+    }
+
+    from(sourceSets.main.resources.srcDirs) {
+        exclude 'mcmod.info'
+    }
+}
+
+jar {
+    manifest {
+        attributes(
+                'Specification-Title': mod_name,
+                'Specification-Version': "${version}",
+                'Implementation-Title': mod_name,
+                'Implementation-Version': "${version}"
+        )
+    }
+}

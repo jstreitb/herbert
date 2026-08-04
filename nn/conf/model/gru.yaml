@@ -1,0 +1,16 @@
+# GRUPolicy: sliding-window sequence model over herbert_nn.data.dataset.WindowDataset.
+family: gru
+
+hidden_size: 128
+num_layers: 2
+dropout: 0.1
+# Optional MLP trunk applied to the GRU's final hidden state before the heads.
+trunk_hidden_dims: [64]
+
+# Embedding dims for the encoder's categorical fields (shared encoder design
+# with MLPPolicy -- see herbert_nn.models.encoder.FeatureEncoder).
+block_cell_embed_dim: 4
+item_type_embed_dim: 16
+kit_type_embed_dim: 8
+held_item_embed_dim: 8
+hotbar_slot_embed_dim: 8

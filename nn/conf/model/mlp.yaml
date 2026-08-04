@@ -1,0 +1,13 @@
+# MLPPolicy: single-tick baseline. Fastest to train; no sequential context.
+family: mlp
+
+# Trunk hidden layer sizes; empty list feeds the encoder output straight to the heads.
+hidden_dims: [256, 128]
+dropout: 0.1
+
+# Embedding dims for the encoder's categorical fields.
+block_cell_embed_dim: 4
+item_type_embed_dim: 16
+kit_type_embed_dim: 8
+held_item_embed_dim: 8
+hotbar_slot_embed_dim: 8

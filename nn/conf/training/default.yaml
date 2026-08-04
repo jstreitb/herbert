@@ -1,0 +1,40 @@
+# Training hyperparameters and infrastructure toggles.
+
+batch_size: 256
+epochs: 50
+num_workers: 2
+
+optimizer:
+  lr: 3.0e-4
+  weight_decay: 1.0e-4
+
+# LR schedule: linear warmup for `warmup_steps` optimizer steps, then cosine
+# decay down to `min_lr_ratio` * base_lr over the rest of training.
+warmup_steps: 500
+min_lr_ratio: 0.05
+
+# Gradient accumulation (effective batch size = batch_size * grad_accum_steps)
+# and clipping (global L2 norm; set null to disable).
+grad_accum_steps: 1
+grad_clip_norm: 1.0
+
+# Mixed precision (torch.autocast + GradScaler). Automatically disabled on CPU.
+amp: true
+
+# Early stopping on validation composite loss.
+early_stopping_patience: 8
+early_stopping_min_delta: 1.0e-4
+
+# Composite loss: per-head weights and the Huber loss delta for MouseHead.
+loss_weights:
+  mouse: 1.0
+  discrete: 1.0
+  block_placement: 1.0
+huber_delta: 1.0
+
+# How often (in optimizer steps) to write scalars to TensorBoard.
+log_every_n_steps: 50
+
+# Weights & Biases (optional; guarded import, only used if enabled).
+use_wandb: false
+wandb_project: herbert-nn

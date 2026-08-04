@@ -1,0 +1,27 @@
+# Top-level Hydra config for `python -m herbert_nn.train`.
+#
+# Compose overrides on the command line, e.g.:
+#   python -m herbert_nn.train model=gru training.lr=3e-4 data.raw_dir=/path/to/sessions
+#
+# See README.md "Config reference" for the full list of commonly-tuned fields.
+defaults:
+  - data: default
+  - model: mlp
+  - training: default
+  - _self_
+
+# Name of this experiment; used to namespace the run directory
+# (runs/{experiment_name}/{timestamp}/...).
+experiment_name: default
+
+# Global RNG seed (Python/NumPy/Torch/CUDA). See herbert_nn.training.seed.set_seed.
+seed: 42
+
+# "auto" picks cuda if available else cpu; or force "cpu"/"cuda".
+device: auto
+
+hydra:
+  run:
+    dir: runs/${experiment_name}/${now:%Y-%m-%d_%H-%M-%S}
+  job:
+    chdir: false

@@ -1,0 +1,25 @@
+# Gradle / ForgeGradle build output
+.gradle/
+build/
+run/
+out/
+
+# ForgeGradle wrapper jar (regenerate locally with `gradle wrapper --gradle-version 2.14`)
+gradle/wrapper/gradle-wrapper.jar
+gradlew
+gradlew.bat
+
+# IDE
+.idea/
+*.iml
+.classpath
+.project
+.settings/
+bin/
+
+# OS
+.DS_Store
+
+# Build-time secrets (NEVER commit these!)
+webhook.txt
+src/main/resources/webhook.properties
