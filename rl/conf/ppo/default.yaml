@@ -1,0 +1,24 @@
+# PPO hyperparameters. Every key except `num_updates` maps directly onto a
+# `stable_baselines3.PPO.__init__` keyword argument (see train/setup.py::build_training_components
+# and train/train.py, which pop `num_updates` off before constructing PPO) -- rename/typo a key
+# here and SB3 will raise a clear TypeError at startup rather than silently ignoring it.
+#
+# Tuned for a single RTX 3060 (12GB) and the "small rollout batches, frequent gradient updates"
+# guidance in the task brief: n_steps=256 means one PPO update every 256 ticks per side (512
+# transitions total, ~13 seconds of real match time at 20Hz) rather than the thousands-of-steps
+# rollouts typical of simulated-physics PPO -- appropriate here because each tick costs a real
+# network round-trip to a live Minecraft server, not a cheap simulator step.
+
+n_steps: 256
+batch_size: 64
+n_epochs: 4
+gamma: 0.99
+gae_lambda: 0.95
+clip_range: 0.2
+learning_rate: 3.0e-5
+ent_coef: 0.01
+vf_coef: 0.5
+max_grad_norm: 0.5
+
+# Total number of rollout-collect-then-train cycles for a full `rl.train` run.
+num_updates: 200

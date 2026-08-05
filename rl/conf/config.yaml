@@ -1,0 +1,48 @@
+# Top-level Hydra config for `python -m herbert_rl.train.train`.
+#
+# Compose overrides on the command line, e.g.:
+#   python -m herbert_rl.train.train env.host=192.168.1.50 ppo.learning_rate=1e-5
+#
+# See rl/README.md "Config reference" for the full list of commonly-tuned fields.
+defaults:
+  - env: default
+  - reward: default
+  - ppo: default
+  - _self_
+
+# Name of this experiment; used to namespace the run directory
+# (runs/{experiment_name}/{timestamp}/...), same convention as /nn.
+experiment_name: default
+
+seed: 42
+
+# "auto" picks cuda if available else cpu; or force "cpu"/"cuda". A single RTX 3060 (12GB) is the
+# target -- PPO's network here is small (the /nn backbone plus two linear heads), so this rarely
+# gets anywhere near the VRAM ceiling; batch_size/n_steps are the actual levers if it does.
+device: auto
+
+# Path to the /nn behavioral-cloning checkpoint to fine-tune (e.g.
+# nn/runs/gru_run1/2026-08-04_12-00-00/best.pt). Required for a real training run -- there is no
+# default because it is inherently run-specific.
+pretrained_checkpoint_path: ???
+
+# Path to the manifest.json of the /nn preprocessing cache the checkpoint above was trained
+# against (or its parent cache directory) -- see herbert_rl/nn_cache.py. Needed so RL observations
+# are standardized/vocab-encoded exactly the way the pretrained backbone expects.
+nn_cache_manifest_path: ???
+
+runs_dir: runs
+
+# How often (in PPO update cycles, i.e. rollout-collect-then-train iterations -- not raw episode
+# count, since Bridge match length varies with server tick timing) to write a numbered checkpoint
+# snapshot in addition to the continuously-updated last.zip/best.zip.
+checkpoint_every_n_updates: 5
+
+# How often (in update cycles) to write TensorBoard scalars.
+log_every_n_updates: 1
+
+hydra:
+  run:
+    dir: ${runs_dir}/${experiment_name}/${now:%Y-%m-%d_%H-%M-%S}
+  job:
+    chdir: false

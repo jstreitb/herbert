@@ -1,0 +1,57 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+
+# --- Virtual environments ---
+.venv/
+venv/
+env/
+ENV/
+
+# --- Training run artifacts ---
+runs/
+*.pt
+*.pt.gz
+*.zip
+*.ckpt
+
+# --- Testing / tooling caches ---
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+
+# --- Hydra ---
+outputs/
+multirun/
+.hydra/
+
+# --- Editors / OS ---
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# --- Weights & Biases ---
+wandb/
+
+# --- Environment / secrets ---
+.env
+.env.*
+
+# --- Node (bridge/) ---
+bridge/node_modules/
+bridge/npm-debug.log*
+bridge/package-lock.json

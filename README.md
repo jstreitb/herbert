@@ -9,18 +9,25 @@ The question Herbert is trying to answer is deliberately modest:
 > Can a small, behaviorally-cloned neural network — trained on a single consumer GPU from a
 > few hours of one skilled player's logged sessions — learn anything resembling Bridge play?
 
-This is **not** an attempt to build a superhuman or even "good" Bridge bot. It is a feasibility
-and learning project: a passive data logger, an offline training pipeline, and a community
-data-collection funnel, built to see what a small state-based model can pick up from human
-demonstration data. **Nothing in this project automates gameplay, injects input into the game
-client, or otherwise interacts with Hypixel's servers beyond normal, passive, human-driven
-play.**
+This is **not** an attempt to build a superhuman or even "good" Bridge bot. At its core (`/mod`,
+`/bot`, `/nn`) it is a feasibility and learning project: a passive data logger, an offline
+training pipeline, and a community data-collection funnel, built to see what a small state-based
+model can pick up from human demonstration data. **`/mod` itself automates nothing — it never
+injects input into the game client or otherwise interacts with Hypixel's servers beyond normal,
+passive, human-driven play.**
+
+The experimental `/rl` component is the one exception to that passivity, and is scoped
+accordingly: it automates bot clients (via [Mineflayer](https://github.com/PrismarineJS/mineflayer))
+to play Bridge duels against each other for reinforcement-learning self-play, but **only against
+a private, self-hosted Minecraft 1.8.9 server the developer controls** — never against Hypixel or
+any other third-party server. See [`rl/README.md`](rl/README.md) for the full scope and caveats.
 
 ## Architecture
 
-Herbert is split into three independent components. They share **no code** — each is a
-standalone project with its own toolchain, dependencies, and README. The only things that
-connect them are two narrow data contracts:
+Herbert is split into independent components — `/mod`, `/bot`, `/nn`, and the experimental
+`/rl` fine-tuning phase described below. They share **no code** — each is a standalone project
+with its own toolchain, dependencies, and README. The only things that connect them are a few
+narrow data/artifact contracts:
 
 ```
  ┌──────────────┐   JSONL session log    ┌──────────────┐   pastes.dev URL   ┌──────────────┐
@@ -63,11 +70,22 @@ connect them are two narrow data contracts:
    raw pixels) to predict a player's next action from the current game state. Runs comfortably
    on a single RTX 3060 (12GB VRAM).
 
+4. **[`/rl`](rl/) — reinforcement-learning fine-tuning (experimental).** Takes a `/nn`
+   checkpoint and fine-tunes it with PPO via self-play: two Herbert-controlled bots (a Node.js/
+   Mineflayer client each) play automated Bridge duels against each other on a private,
+   self-hosted Minecraft 1.8.9 server the developer controls — **not** Hypixel or any
+   third-party server. This is the RL phase that follows `/nn`'s imitation-learning baseline; see
+   [`rl/README.md`](rl/README.md) for the full architecture and a "managing expectations" note on
+   what this phase can realistically be expected to produce.
+
 The **JSONL schema** produced by `/mod` (documented field-by-field in
-[`mod/README.md`](mod/README.md)) is the only contract between `/mod` and `/nn`. The
+[`mod/README.md`](mod/README.md)) is the only contract between `/mod` and `/nn`, and `/rl`'s
+bridge client re-implements that same schema for its own bot-collected observations. The
 **pastes.dev URL format** (`https://pastes.dev/{key}`) is the only contract between `/mod` and
-`/bot`. Each component can be built, tested, and evolved independently as long as those two
-contracts hold.
+`/bot`. `/rl` additionally consumes a `/nn` checkpoint file as a fine-tuning starting point (see
+[`rl/README.md`](rl/README.md#constraints--contract-with-the-rest-of-the-project)) but does not
+share code with any other component. Each component can be built, tested, and evolved
+independently as long as those contracts hold.
 
 **Publication status:** `/mod` and `/nn` are open-source and public, as described above. `/bot`
 is intentionally kept **private and unpublished** — it is not part of this public repository, by
@@ -89,6 +107,9 @@ What you want to do determines where to start:
   environment setup, the expected data layout, and a full preprocess → train → evaluate
   walkthrough, including a `--smoke-test` mode that validates the whole pipeline in under a
   minute.
+- **I want to try RL fine-tuning on top of a trained model.** See [`rl/README.md`](rl/README.md)
+  — requires a completed `/nn` checkpoint and your own private Minecraft 1.8.9 server (not
+  Hypixel); experimental, read the "managing expectations" section first.
 - **I want to contribute code.** See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the code quality
   bar, how each component is tested, and how to submit a PR.
 

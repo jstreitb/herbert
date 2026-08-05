@@ -1,0 +1,14 @@
+# RewardFunction weights (herbert_rl.env.reward.RewardWeights). **Starting guesses, not tuned
+# values** -- see rl/env/reward.py's module docstring and rl/README.md's "managing expectations"
+# section. Side B's `own_goal_forward_sign` is automatically negated relative to this file's value
+# (see train/setup.py::build_reward_weights) -- only configure side A's sign here.
+
+goal_scored: 1.0
+goal_conceded: -1.0
+bridge_progress: 0.01
+idle_penalty: -0.005
+idle_speed_threshold: 0.02
+
+# Server/map-specific -- see rl/server/SETUP.md and rl/env/reward.py::RewardWeights docstring.
+bridge_axis: x
+own_goal_forward_sign: 1

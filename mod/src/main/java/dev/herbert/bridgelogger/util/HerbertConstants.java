@@ -19,8 +19,22 @@ public final class HerbertConstants {
     /** Current mod build version. Also reported in the session header as {@code herbert_mod_version}. */
     public static final String MOD_VERSION = "1.0.0";
 
-    /** Semantic version of the JSONL schema written by {@link dev.herbert.bridgelogger.serialize.SessionSerializer}. */
-    public static final String SCHEMA_VERSION = "1.0.0";
+    /**
+     * Semantic version of the JSONL schema written by {@link dev.herbert.bridgelogger.serialize.SessionSerializer}.
+     *
+     * <p>Bumped to {@code 1.2.0} (from {@code 1.1.0}) for the addition of the optional
+     * {@code chunk_index}/{@code chunk_total} session-header fields (see
+     * {@link dev.herbert.bridgelogger.serialize.SessionChunker}) -- another backward-compatible,
+     * additive change: both fields are only ever present on the header of a chunked upload's
+     * split files, never on a single-file session, and are added by copying the original header
+     * line byte-for-byte and appending the two fields to that copy (see
+     * {@link dev.herbert.bridgelogger.serialize.SessionChunker#withChunkMetadata(String, int, int)}),
+     * never by re-serializing the header object. (Previously bumped to {@code 1.1.0} for the
+     * optional {@code player_username_display} field -- see
+     * {@link dev.herbert.bridgelogger.model.SessionHeader}.) See {@code mod/README.md}'s JSONL
+     * schema section.</p>
+     */
+    public static final String SCHEMA_VERSION = "1.2.0";
 
     /** Vanilla Minecraft tick rate, used only for documentation/derivations (ticks per second). */
     public static final int VANILLA_TICKS_PER_SECOND = 20;
@@ -100,6 +114,50 @@ public final class HerbertConstants {
 
     /** Default substrings matched (case-insensitive) against the current server address to detect Hypixel. */
     public static final String[] DEFAULT_BRIDGE_SERVER_ADDRESS_MATCHES = {"hypixel.net"};
+
+    /**
+     * Default number of seconds the session-end "display your username publicly?" chat prompt
+     * (see {@link dev.herbert.bridgelogger.session.SessionManager}) waits for the player's
+     * response before defaulting to a hashed-only username and proceeding with the upload.
+     */
+    public static final int DEFAULT_USERNAME_PROMPT_TIMEOUT_SECONDS = 30;
+
+    /** Smallest legal value for the username-display prompt timeout, in seconds. */
+    public static final int MIN_USERNAME_PROMPT_TIMEOUT_SECONDS = 1;
+
+    /**
+     * Discord's file-attachment size limit for a (non-boosted) webhook message, in bytes.
+     * Documentation-only constant: {@link #DEFAULT_TARGET_CHUNK_SIZE_BYTES} is deliberately kept
+     * below this with headroom for the surrounding multipart envelope (boundary markers, the
+     * {@code payload_json} field, HTTP header overhead), not equal to it.
+     */
+    public static final long DISCORD_WEBHOOK_FILE_SIZE_LIMIT_BYTES = 8L * 1024 * 1024;
+
+    /**
+     * Default target size (bytes) for each split chunk when a session JSONL file is too large to
+     * upload as a single Discord webhook file attachment (see
+     * {@link dev.herbert.bridgelogger.serialize.SessionChunker}). Also doubles as the threshold
+     * that decides whether a session needs chunking at all: a file at or under this size uploads
+     * via the existing single-file pastes.dev + webhook-notify flow, unchanged; a file over it is
+     * split into chunks each targeting this size. 7 MiB, leaving roughly 1 MiB of headroom below
+     * {@link #DISCORD_WEBHOOK_FILE_SIZE_LIMIT_BYTES}.
+     */
+    public static final int DEFAULT_TARGET_CHUNK_SIZE_BYTES = 7 * 1024 * 1024;
+
+    /** Smallest legal target chunk size, to keep the number of chunks/webhook requests sane. */
+    public static final int MIN_TARGET_CHUNK_SIZE_BYTES = 64 * 1024;
+
+    /**
+     * Default delay (milliseconds) between successive chunk uploads to the same Discord webhook,
+     * to stay well under Discord's documented rate limit of 30 requests per minute per webhook
+     * (a 1000ms delay caps this mod's own chunk uploads at 60/minute in the worst case of
+     * zero-latency requests, but leaves headroom against Discord's own request latency and any
+     * other traffic sharing the same webhook).
+     */
+    public static final int DEFAULT_CHUNK_UPLOAD_DELAY_MILLIS = 1000;
+
+    /** Smallest legal inter-chunk upload delay, in milliseconds (0 = no delay). */
+    public static final int MIN_CHUNK_UPLOAD_DELAY_MILLIS = 0;
 
     /** Name of the Forge config category holding every BridgeLogger setting. */
     public static final String CONFIG_CATEGORY_GENERAL = "general";

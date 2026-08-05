@@ -30,6 +30,9 @@ public final class HerbertConfig {
     private int voidThresholdY = HerbertConstants.DEFAULT_VOID_THRESHOLD_Y;
     private String[] bridgeScoreboardTitleMatches = HerbertConstants.DEFAULT_BRIDGE_SCOREBOARD_TITLE_MATCHES;
     private String[] bridgeServerAddressMatches = HerbertConstants.DEFAULT_BRIDGE_SERVER_ADDRESS_MATCHES;
+    private int usernamePromptTimeoutSeconds = HerbertConstants.DEFAULT_USERNAME_PROMPT_TIMEOUT_SECONDS;
+    private int targetChunkSizeBytes = HerbertConstants.DEFAULT_TARGET_CHUNK_SIZE_BYTES;
+    private int chunkUploadDelayMillis = HerbertConstants.DEFAULT_CHUNK_UPLOAD_DELAY_MILLIS;
 
     private Configuration configuration;
 
@@ -89,10 +92,31 @@ public final class HerbertConfig {
                     HerbertConstants.DEFAULT_BRIDGE_SERVER_ADDRESS_MATCHES,
                     "Case-insensitive substrings checked against the current server address to auto-detect a Hypixel connection.");
 
+            usernamePromptTimeoutSeconds = getInt(HerbertConstants.CONFIG_CATEGORY_GENERAL, "usernamePromptTimeoutSeconds",
+                    HerbertConstants.DEFAULT_USERNAME_PROMPT_TIMEOUT_SECONDS,
+                    "How many seconds the session-end \"display your username publicly?\" chat prompt waits for a "
+                            + "response before defaulting to a hashed-only username and proceeding with the upload.");
+
+            targetChunkSizeBytes = getInt(HerbertConstants.CONFIG_CATEGORY_GENERAL, "targetChunkSizeBytes",
+                    HerbertConstants.DEFAULT_TARGET_CHUNK_SIZE_BYTES,
+                    "Target size, in bytes, of each split chunk when a session JSONL file is too large to upload as a "
+                            + "single Discord webhook file attachment (default 7 MiB, under Discord's 8 MiB webhook file "
+                            + "limit). Also the threshold that decides whether a session needs chunking at all -- a file "
+                            + "at or under this size uploads as a single file, unchanged.");
+
+            chunkUploadDelayMillis = getInt(HerbertConstants.CONFIG_CATEGORY_GENERAL, "chunkUploadDelayMillis",
+                    HerbertConstants.DEFAULT_CHUNK_UPLOAD_DELAY_MILLIS,
+                    "Delay, in milliseconds, between successive chunk uploads to the Discord webhook when a session "
+                            + "was split (see targetChunkSizeBytes), to stay under Discord's ~30-requests-per-minute "
+                            + "per-webhook rate limit.");
+
             blockGridWidth = clamp(blockGridWidth, HerbertConstants.MIN_GRID_DIMENSION, HerbertConstants.MAX_GRID_DIMENSION);
             blockGridHeight = clamp(blockGridHeight, HerbertConstants.MIN_GRID_DIMENSION, HerbertConstants.MAX_GRID_DIMENSION);
             blockGridDepth = clamp(blockGridDepth, HerbertConstants.MIN_GRID_DIMENSION, HerbertConstants.MAX_GRID_DIMENSION);
             sampleRateDivisor = Math.max(sampleRateDivisor, HerbertConstants.MIN_SAMPLE_RATE_DIVISOR);
+            usernamePromptTimeoutSeconds = Math.max(usernamePromptTimeoutSeconds, HerbertConstants.MIN_USERNAME_PROMPT_TIMEOUT_SECONDS);
+            targetChunkSizeBytes = Math.max(targetChunkSizeBytes, HerbertConstants.MIN_TARGET_CHUNK_SIZE_BYTES);
+            chunkUploadDelayMillis = Math.max(chunkUploadDelayMillis, HerbertConstants.MIN_CHUNK_UPLOAD_DELAY_MILLIS);
         } finally {
             if (configuration.hasChanged()) {
                 configuration.save();
@@ -183,6 +207,24 @@ public final class HerbertConfig {
     /** @return case-insensitive substrings matched against the server address to detect Hypixel */
     public String[] getBridgeServerAddressMatches() {
         return bridgeServerAddressMatches;
+    }
+
+    /** @return seconds the session-end username-display chat prompt waits before defaulting, always {@code >= 1} */
+    public int getUsernamePromptTimeoutSeconds() {
+        return usernamePromptTimeoutSeconds;
+    }
+
+    /**
+     * @return target chunk size in bytes (also the single-file-vs-chunked threshold), always
+     *         {@code >= } {@link HerbertConstants#MIN_TARGET_CHUNK_SIZE_BYTES}
+     */
+    public int getTargetChunkSizeBytes() {
+        return targetChunkSizeBytes;
+    }
+
+    /** @return delay in milliseconds between successive chunk uploads, always {@code >= 0} */
+    public int getChunkUploadDelayMillis() {
+        return chunkUploadDelayMillis;
     }
 
     /**

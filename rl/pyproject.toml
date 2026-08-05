@@ -1,0 +1,84 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "herbert-rl"
+version = "0.1.0"
+description = "Herbert /rl: PPO fine-tuning of a /nn behavioral-cloning checkpoint via Bridge-duel self-play (experimental)."
+readme = "README.md"
+requires-python = ">=3.10,<3.12"
+license = { text = "MIT" }
+authors = [{ name = "Herbert project contributors" }]
+keywords = ["reinforcement-learning", "ppo", "self-play", "minecraft", "mineflayer"]
+classifiers = [
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Developers",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+dependencies = [
+    "torch>=2.8,<3.0",
+    "stable-baselines3>=2.3,<3.0",
+    "gymnasium>=0.29.1,<2.0",
+    "pydantic>=2.5,<3.0",
+    "hydra-core>=1.3,<1.4",
+    "omegaconf>=2.3,<2.4",
+    "numpy>=1.24,<3.0",
+    "tensorboard>=2.15,<3.0",
+]
+
+[project.optional-dependencies]
+wandb = ["wandb>=0.16,<1.0"]
+dev = [
+    "pytest>=7.4,<9.0",
+    "ruff>=0.4,<1.0",
+    "black>=24.0,<25.0",
+    "mypy>=1.8,<2.0",
+]
+
+[project.scripts]
+herbert-rl-train = "herbert_rl.train.train:main"
+herbert-rl-smoketest = "herbert_rl.train.smoketest:main"
+herbert-rl-evaluate = "herbert_rl.train.evaluate:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["herbert_rl*"]
+
+# NOTE: Hydra configs live in `conf/` at the project root (sibling of `src/`), not inside the
+# installed package -- same convention as /nn. `herbert_rl.train.train` locates `conf/` relative
+# to its own source file (see that module's `@hydra.main(config_path=...)`), so this works
+# regardless of the caller's cwd, but `python -m herbert_rl.train.train` is normally run from the
+# `rl/` directory (see README.md).
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM"]
+ignore = ["E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["herbert_rl"]
+
+[tool.black]
+line-length = 100
+target-version = ["py310", "py311"]
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+disallow_untyped_defs = false
+check_untyped_defs = true
+exclude = ["tests/", "conf/"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"

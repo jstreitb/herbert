@@ -1,0 +1,25 @@
+{
+  "name": "herbert-rl-bridge",
+  "version": "0.1.0",
+  "description": "Herbert /rl bridge: a Mineflayer bot client that connects one bot account to a private Minecraft 1.8.9 server and exposes it to the Python RL env over a stdin/stdout JSON-lines IPC protocol.",
+  "private": true,
+  "license": "MIT",
+  "type": "commonjs",
+  "main": "src/bridge.js",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "start": "node src/bridge.js",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "mineflayer": "4.23.0",
+    "minecraft-data": "3.62.0",
+    "vec3": "0.1.10",
+    "yargs": "17.7.2"
+  },
+  "devDependencies": {
+    "eslint": "8.57.0"
+  }
+}
