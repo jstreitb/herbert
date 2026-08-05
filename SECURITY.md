@@ -3,8 +3,9 @@
 ## Reporting a Vulnerability
 
 If you discover a security vulnerability in Herbert, please report it
-responsibly by emailing **n0entry.social@gmail.com** with the subject line
-"[SECURITY]" and a detailed description of the issue.
+responsibly by messaging **jstreitb** on Discord (user ID
+`1413510052899455106`) with a detailed description of the issue. You must be
+a member of the Herbert Discord server to send a direct message.
 
 **Please do not open a public GitHub issue for security vulnerabilities.**
 
