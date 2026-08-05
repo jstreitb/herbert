@@ -1,5 +1,8 @@
 # Herbert
 
+> [!IMPORTANT]  
+> THIS PROJECT IS COMPLETELY VIBE-CODED!.
+
 Herbert is an open-source, community-driven experiment in **imitation learning for Hypixel
 Bridge duels** (the 1v1 rush/PvP/build gamemode on the [Hypixel](https://hypixel.net) network,
 running on Minecraft 1.8.9).
