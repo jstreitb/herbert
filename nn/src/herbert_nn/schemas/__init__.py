@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Versioned Pydantic schema definitions for BridgeLogger JSONL session logs.
 
 The ``/mod`` component (a Forge 1.8.9 Minecraft mod) logs each recorded

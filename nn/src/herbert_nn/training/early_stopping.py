@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Early stopping on a monitored (lower-is-better) validation metric."""
 
 from __future__ import annotations
@@ -11,10 +12,12 @@ class EarlyStopping:
     """Stops training when a monitored value has not improved for ``patience`` epochs."""
 
     def __init__(self, patience: int, min_delta: float = 0.0) -> None:
-        """Args:
-        patience: Number of consecutive non-improving epochs to tolerate
-            before signaling a stop.
-        min_delta: Minimum decrease required to count as an improvement.
+        """Initialize the early-stopping tracker.
+
+        Args:
+            patience: Number of consecutive non-improving epochs to tolerate
+                before signaling a stop.
+            min_delta: Minimum decrease required to count as an improvement.
         """
         self.patience = patience
         self.min_delta = min_delta

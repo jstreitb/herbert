@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Canonical feature layout and enum-to-index mappings shared across the pipeline.
 
 Every module that turns a validated :class:`herbert_nn.schemas.v1_0_0.TickRecordV1`

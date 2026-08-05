@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 package dev.herbert.bridgelogger.model;
 
 import com.google.gson.annotations.SerializedName;
@@ -11,12 +12,15 @@ import com.google.gson.annotations.SerializedName;
  */
 public final class PlayerState {
 
+    /** World X coordinate. */
     @SerializedName("x")
     public final double x;
 
+    /** World Y coordinate. */
     @SerializedName("y")
     public final double y;
 
+    /** World Z coordinate. */
     @SerializedName("z")
     public final double z;
 
@@ -40,9 +44,11 @@ public final class PlayerState {
     @SerializedName("pitch")
     public final float pitch;
 
+    /** Whether the player is currently touching the ground. */
     @SerializedName("on_ground")
     public final boolean onGround;
 
+    /** Whether the player is currently sneaking. */
     @SerializedName("sneaking")
     public final boolean sneaking;
 

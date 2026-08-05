@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Loads a `/nn` behavioral-cloning checkpoint into the RL backbone, without importing `herbert_nn`.
 
 A `/nn` checkpoint (as written by `herbert_nn.training.checkpoint.save_checkpoint`) is a plain
@@ -28,9 +29,8 @@ from pathlib import Path
 from typing import Any
 
 import torch
-from torch import nn
 
-from herbert_rl.policy.backbone import RLDataMeta, build_backbone
+from herbert_rl.policy.backbone import RLBackbone, RLDataMeta, build_backbone
 
 logger = logging.getLogger(__name__)
 
@@ -59,14 +59,16 @@ class PretrainedHeads:
 class LoadedBackbone:
     """Everything `policy/sb3_policy.py` needs to build the PPO policy's network."""
 
-    backbone: nn.Module
+    backbone: RLBackbone
     trunk_dim: int
     model_family: str
     pretrained_heads: PretrainedHeads
     checkpoint_path: str | None
 
 
-def load_nn_checkpoint(checkpoint_path: str | Path, map_location: str = "cpu") -> LoadedBackbone:
+def load_nn_checkpoint(
+    checkpoint_path: str | Path, map_location: str = "cpu"
+) -> LoadedBackbone:
     """Load a `/nn` checkpoint and build the matching RL backbone with its weights.
 
     Args:
@@ -79,7 +81,9 @@ def load_nn_checkpoint(checkpoint_path: str | Path, map_location: str = "cpu") -
     """
     path = Path(checkpoint_path)
     logger.info("Loading /nn checkpoint from %s", path)
-    checkpoint: dict[str, Any] = torch.load(path, map_location=map_location, weights_only=False)
+    checkpoint: dict[str, Any] = torch.load(
+        path, map_location=map_location, weights_only=False
+    )
 
     data_meta = RLDataMeta.from_checkpoint_data_meta(checkpoint["data_meta"])
     model_cfg = dict(checkpoint["model_cfg"])
@@ -90,9 +94,15 @@ def load_nn_checkpoint(checkpoint_path: str | Path, map_location: str = "cpu") -
     # Expected unexpected keys: mouse_head.*, discrete_head.*, block_placement_head.* (handled
     # below / intentionally not part of the backbone). Anything else showing up here indicates a
     # drift between backbone.py and /nn's actual architecture -- log loudly either way.
-    expected_unexpected_prefixes = ("mouse_head.", "discrete_head.", "block_placement_head.")
+    expected_unexpected_prefixes = (
+        "mouse_head.",
+        "discrete_head.",
+        "block_placement_head.",
+    )
     surprising_unexpected = [
-        k for k in result.unexpected_keys if not k.startswith(expected_unexpected_prefixes)
+        k
+        for k in result.unexpected_keys
+        if not k.startswith(expected_unexpected_prefixes)
     ]
     if result.missing_keys:
         logger.warning(
@@ -122,7 +132,10 @@ def load_nn_checkpoint(checkpoint_path: str | Path, map_location: str = "cpu") -
         discrete_weight=state_dict.get("discrete_head.linear.weight"),
         discrete_bias=state_dict.get("discrete_head.linear.bias"),
     )
-    if pretrained_heads.mouse_weight is None or pretrained_heads.discrete_weight is None:
+    if (
+        pretrained_heads.mouse_weight is None
+        or pretrained_heads.discrete_weight is None
+    ):
         logger.warning(
             "Checkpoint at %s is missing mouse_head/discrete_head weights -- the corresponding "
             "PPO action dims will start randomly initialized instead of BC-informed.",

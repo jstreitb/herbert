@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Open-vocabulary categorical encoder -- a hand-synced copy of `herbert_nn.data.vocab`.
 
 See `constants.py` for why this is a copy rather than an import. `to_dict`/`from_dict` are
@@ -10,7 +11,12 @@ from __future__ import annotations
 from collections import Counter
 from collections.abc import Iterable
 
-from herbert_rl.constants import NULL_TOKEN, UNK_TOKEN, VOCAB_NULL_INDEX, VOCAB_UNK_INDEX
+from herbert_rl.constants import (
+    NULL_TOKEN,
+    UNK_TOKEN,
+    VOCAB_NULL_INDEX,
+    VOCAB_UNK_INDEX,
+)
 
 
 class CategoricalVocab:
@@ -21,6 +27,14 @@ class CategoricalVocab:
     """
 
     def __init__(self, name: str, max_size: int | None = None) -> None:
+        """Initialize an empty vocabulary.
+
+        Args:
+            name: Human-readable name used in log/error messages (e.g. ``"item_type"``).
+            max_size: Maximum number of real (non-special) tokens to keep, ranked by
+                training-set frequency; tokens beyond this fold into ``<UNK>``. ``None``
+                means unbounded.
+        """
         self.name = name
         self.max_size = max_size
         self._token_to_index: dict[str, int] = {}
@@ -28,26 +42,53 @@ class CategoricalVocab:
         self._fitted = False
 
     def fit(self, values: Iterable[str | None]) -> CategoricalVocab:
+        """Build the vocabulary from an iterable of (possibly ``None``) strings.
+
+        Args:
+            values: Training-split values for this field, one per tick.
+
+        Returns:
+            ``self``, for chaining.
+        """
         counts: Counter[str] = Counter(v for v in values if v is not None)
         ranked = sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
         if self.max_size is not None:
             ranked = ranked[: self.max_size]
-        self._token_to_index = {token: index + 2 for index, (token, _count) in enumerate(ranked)}
+        self._token_to_index = {
+            token: index + 2 for index, (token, _count) in enumerate(ranked)
+        }
         self._fitted = True
         return self
 
     @property
     def size(self) -> int:
+        """Total vocabulary size including the two reserved special tokens."""
         return len(self._token_to_index) + 2
 
     def encode(self, value: str | None) -> int:
+        """Map a raw value to its integer index.
+
+        Args:
+            value: The raw field value, or ``None``.
+
+        Returns:
+            ``VOCAB_NULL_INDEX`` if ``value`` is ``None``; the token's index if it was seen
+            during :meth:`fit`; otherwise ``VOCAB_UNK_INDEX``.
+        """
         if not self._fitted:
-            raise RuntimeError(f"CategoricalVocab {self.name!r} used before fit()/from_dict().")
+            raise RuntimeError(
+                f"CategoricalVocab {self.name!r} used before fit()/from_dict()."
+            )
         if value is None:
             return VOCAB_NULL_INDEX
         return self._token_to_index.get(value, VOCAB_UNK_INDEX)
 
     def decode(self, index: int) -> str:
+        """Map an integer index back to its token string (inverse of :meth:`encode`).
+
+        Returns :data:`NULL_TOKEN`/:data:`UNK_TOKEN` for the reserved indices, or the
+        original token string for any other valid index.
+        """
         if index == VOCAB_NULL_INDEX:
             return NULL_TOKEN
         if index == VOCAB_UNK_INDEX:
@@ -62,6 +103,7 @@ class CategoricalVocab:
             ) from exc
 
     def to_dict(self) -> dict:
+        """Serialize to a JSON-safe dict, in the same format as `/nn`'s `CategoricalVocab`."""
         return {
             "name": self.name,
             "max_size": self.max_size,
@@ -70,14 +112,17 @@ class CategoricalVocab:
 
     @classmethod
     def from_dict(cls, data: dict) -> CategoricalVocab:
+        """Deserialize a vocab previously produced by :meth:`to_dict` (by this class or `/nn`'s)."""
         vocab = cls(name=data["name"], max_size=data.get("max_size"))
-        vocab._token_to_index = {str(k): int(v) for k, v in data["token_to_index"].items()}
+        vocab._token_to_index = {
+            str(k): int(v) for k, v in data["token_to_index"].items()
+        }
         vocab._fitted = True
         return vocab
 
     @classmethod
     def empty(cls, name: str) -> CategoricalVocab:
-        """A vocab with only the two special tokens, for use without a fitted `/nn` cache.
+        """Build a vocab with only the two special tokens, for use without a fitted `/nn` cache.
 
         See `Standardizer.identity` -- same "smoke test only" caveat applies.
         """
@@ -86,4 +131,5 @@ class CategoricalVocab:
         return vocab
 
     def __len__(self) -> int:
+        """Return :attr:`size`."""
         return self.size

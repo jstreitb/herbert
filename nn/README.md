@@ -159,8 +159,9 @@ This is a sanity-checking tool, not a metrics tool -- use `evaluate` for aggrega
 `herbert_nn.smoketest` runs one full epoch over 200 synthetic (randomly generated,
 shape-correct) samples through a real, tiny model -- a real forward pass, backward pass,
 composite loss, and checkpoint save -- without needing any real recorded session data or a
-preprocessing pass. It's meant to complete in well under a second on CPU and confirms the
-whole model/loss/training-engine wiring is intact:
+preprocessing pass. It typically finishes in a few seconds on CPU (comfortably under the
+60-second threshold the tool itself warns about) and confirms the whole
+model/loss/training-engine wiring is intact:
 
 ```bash
 python -m herbert_nn.smoketest --model mlp

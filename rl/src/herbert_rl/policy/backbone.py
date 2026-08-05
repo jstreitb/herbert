@@ -1,5 +1,7 @@
-"""RL policy backbone: a hand-synced architectural copy of `/nn`'s `FeatureEncoder` +
-`MLPPolicy`/`GRUPolicy` trunks (see `nn/src/herbert_nn/models/{encoder,mlp,gru}.py`).
+# SPDX-License-Identifier: MIT
+"""RL policy backbone: architectural copy of `/nn`'s `FeatureEncoder` + `MLPPolicy`/`GRUPolicy` trunks.
+
+See `nn/src/herbert_nn/models/{encoder,mlp,gru}.py` for the originals.
 
 **Why duplicated instead of imported:** `/rl` may not import `herbert_nn` at runtime (see
 `constants.py`), but a `/nn` checkpoint's `model_state_dict` is a plain dict of tensors keyed by
@@ -27,14 +29,20 @@ from torch import nn
 
 #: MUST match `herbert_nn.constants.CONTINUOUS_FEATURE_DIM` / `NUM_HELD_ITEM_CATEGORIES` /
 #: `NUM_HOTBAR_SLOTS` -- see `herbert_rl.constants`.
-from herbert_rl.constants import CONTINUOUS_FEATURE_DIM, NUM_HELD_ITEM_CATEGORIES, NUM_HOTBAR_SLOTS
+from herbert_rl.constants import (
+    CONTINUOUS_FEATURE_DIM,
+    NUM_HELD_ITEM_CATEGORIES,
+    NUM_HOTBAR_SLOTS,
+)
 
 
 @dataclass(frozen=True)
 class RLDataMeta:
-    """The subset of `/nn`'s `DataMeta` the RL backbone needs (no `place_block_type_vocab_size`
-    -- block-placement *type* selection is out of scope for the RL action space; see
-    `env/spaces.py`)."""
+    """The subset of `/nn`'s `DataMeta` the RL backbone needs.
+
+    No `place_block_type_vocab_size` -- block-placement *type* selection is out of scope
+    for the RL action space; see `env/spaces.py`.
+    """
 
     block_grid_shape: tuple[int, int, int]
     item_type_vocab_size: int
@@ -42,6 +50,7 @@ class RLDataMeta:
 
     @property
     def num_block_cells(self) -> int:
+        """Total flattened block-grid cell count (``width * height * depth``)."""
         w, h, d = self.block_grid_shape
         return w * h * d
 
@@ -49,15 +58,35 @@ class RLDataMeta:
     def from_checkpoint_data_meta(cls, data_meta: dict) -> RLDataMeta:
         """Build from a `/nn` checkpoint's embedded ``data_meta`` dict (extra keys ignored)."""
         return cls(
-            block_grid_shape=tuple(data_meta["block_grid_shape"]),  # type: ignore[arg-type]
+            block_grid_shape=tuple(data_meta["block_grid_shape"]),
             item_type_vocab_size=int(data_meta["item_type_vocab_size"]),
             kit_type_vocab_size=int(data_meta["kit_type_vocab_size"]),
         )
 
 
+class RLBackbone(nn.Module):
+    """Common interface shared by :class:`RLMLPBackbone` and :class:`RLGRUBackbone`.
+
+    Exists so callers (``policy/checkpoint_adapter.py``, ``policy/sb3_policy.py``) can be typed
+    against ``output_dim: int`` and ``forward(batch) -> torch.Tensor`` without mypy falling back
+    to ``nn.Module.__getattr__``'s ``Tensor | Module`` return type, which is not compatible with
+    ``output_dim`` actually being a plain ``int`` set in each subclass's ``__init__``.
+    """
+
+    output_dim: int
+
+    def forward(
+        self, batch: dict[str, torch.Tensor]
+    ) -> torch.Tensor:  # pragma: no cover - abstract
+        """Encode a batch of ticks into the trunk's final hidden vector, shape ``[batch, output_dim]``."""
+        raise NotImplementedError
+
+
 class RLFeatureEncoder(nn.Module):
-    """Architectural copy of `herbert_nn.models.encoder.FeatureEncoder`. Submodule names and
-    forward-pass shape handling are identical so a checkpoint's `encoder.*` weights load as-is.
+    """Architectural copy of `herbert_nn.models.encoder.FeatureEncoder`.
+
+    Submodule names and forward-pass shape handling are identical so a checkpoint's
+    `encoder.*` weights load as-is.
     """
 
     def __init__(
@@ -72,15 +101,22 @@ class RLFeatureEncoder(nn.Module):
         hotbar_slot_embed_dim: int = 8,
         block_cell_num_types: int = 5,
     ) -> None:
+        """Configure embedding tables for every categorical tick field (see `/nn`'s `FeatureEncoder`)."""
         super().__init__()
         self.num_block_cells = num_block_cells
-        self.block_cell_embedding = nn.Embedding(block_cell_num_types, block_cell_embed_dim)
-        self.item_type_embedding = nn.Embedding(item_type_vocab_size, item_type_embed_dim)
+        self.block_cell_embedding = nn.Embedding(
+            block_cell_num_types, block_cell_embed_dim
+        )
+        self.item_type_embedding = nn.Embedding(
+            item_type_vocab_size, item_type_embed_dim
+        )
         self.kit_type_embedding = nn.Embedding(kit_type_vocab_size, kit_type_embed_dim)
         self.opponent_held_item_embedding = nn.Embedding(
             NUM_HELD_ITEM_CATEGORIES, held_item_embed_dim
         )
-        self.hotbar_slot_embedding = nn.Embedding(NUM_HOTBAR_SLOTS, hotbar_slot_embed_dim)
+        self.hotbar_slot_embedding = nn.Embedding(
+            NUM_HOTBAR_SLOTS, hotbar_slot_embed_dim
+        )
         self.output_dim = (
             CONTINUOUS_FEATURE_DIM
             + num_block_cells * block_cell_embed_dim
@@ -99,6 +135,7 @@ class RLFeatureEncoder(nn.Module):
         opponent_held_item_category: torch.Tensor,
         match_kit_type: torch.Tensor,
     ) -> torch.Tensor:
+        """Encode a batch of ticks (optionally with a window dimension) into a dense vector."""
         leading_shape = continuous.shape[:-1]
         block_embed = self.block_cell_embedding(block_grid_cells)
         block_flat = block_embed.reshape(*leading_shape, -1)
@@ -107,11 +144,12 @@ class RLFeatureEncoder(nn.Module):
         held_embed = self.opponent_held_item_embedding(opponent_held_item_category)
         slot_embed = self.hotbar_slot_embedding(hotbar_slot_index)
         return torch.cat(
-            [continuous, block_flat, item_embed, kit_embed, held_embed, slot_embed], dim=-1
+            [continuous, block_flat, item_embed, kit_embed, held_embed, slot_embed],
+            dim=-1,
         )
 
 
-class RLMLPBackbone(nn.Module):
+class RLMLPBackbone(RLBackbone):
     """Architectural copy of `herbert_nn.models.mlp.MLPPolicy`, minus the three output heads.
 
     Consumes the *last* tick of a windowed batch (``[batch, window, ...]``, window collapsed to
@@ -130,6 +168,7 @@ class RLMLPBackbone(nn.Module):
         held_item_embed_dim: int,
         hotbar_slot_embed_dim: int,
     ) -> None:
+        """Build the encoder and MLP trunk (see `/nn`'s `MLPPolicy.__init__` for parameter meanings)."""
         super().__init__()
         self.encoder = RLFeatureEncoder(
             num_block_cells=data_meta.num_block_cells,
@@ -150,6 +189,7 @@ class RLMLPBackbone(nn.Module):
         self.output_dim = in_dim
 
     def forward(self, batch: dict[str, torch.Tensor]) -> torch.Tensor:
+        """Encode the last tick of a windowed batch into the trunk's final hidden vector."""
         last = {key: tensor[:, -1] for key, tensor in batch.items()}
         encoded = self.encoder(
             continuous=last["continuous"],
@@ -162,7 +202,7 @@ class RLMLPBackbone(nn.Module):
         return self.trunk(encoded)
 
 
-class RLGRUBackbone(nn.Module):
+class RLGRUBackbone(RLBackbone):
     """Architectural copy of `herbert_nn.models.gru.GRUPolicy`, minus the three output heads."""
 
     def __init__(
@@ -178,6 +218,7 @@ class RLGRUBackbone(nn.Module):
         held_item_embed_dim: int,
         hotbar_slot_embed_dim: int,
     ) -> None:
+        """Build the encoder, GRU, and optional MLP trunk (see `/nn`'s `GRUPolicy.__init__`)."""
         super().__init__()
         self.encoder = RLFeatureEncoder(
             num_block_cells=data_meta.num_block_cells,
@@ -205,6 +246,7 @@ class RLGRUBackbone(nn.Module):
         self.output_dim = in_dim
 
     def forward(self, batch: dict[str, torch.Tensor]) -> torch.Tensor:
+        """Encode a windowed batch through the GRU, returning the final timestep's hidden state."""
         encoded = self.encoder(
             continuous=batch["continuous"],
             block_grid_cells=batch["block_grid_cells"],
@@ -218,10 +260,11 @@ class RLGRUBackbone(nn.Module):
         return self.trunk(last_hidden)
 
 
-def build_backbone(model_cfg: dict, data_meta: RLDataMeta) -> nn.Module:
-    """Instantiate `RLMLPBackbone` or `RLGRUBackbone` from a `/nn`-shaped ``model_cfg`` dict
-    (the same ``family``/hyperparameter keys as `nn/conf/model/{mlp,gru}.yaml`, and the same
-    dict embedded verbatim in a `/nn` checkpoint's ``model_cfg`` field).
+def build_backbone(model_cfg: dict, data_meta: RLDataMeta) -> RLBackbone:
+    """Instantiate `RLMLPBackbone` or `RLGRUBackbone` from a `/nn`-shaped ``model_cfg`` dict.
+
+    Uses the same ``family``/hyperparameter keys as `nn/conf/model/{mlp,gru}.yaml`, and the
+    same dict embedded verbatim in a `/nn` checkpoint's ``model_cfg`` field.
     """
     family = model_cfg["family"]
     if family == "mlp":

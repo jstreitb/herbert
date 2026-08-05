@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Checkpoint save/load helpers.
 
 A checkpoint embeds not just model weights but everything needed to
@@ -70,7 +71,12 @@ def save_checkpoint(
     if extra:
         payload["extra"] = extra
     torch.save(payload, path)
-    logger.info("Saved checkpoint to %s (epoch=%d, best_val_loss=%.6f)", path, epoch, best_val_loss)
+    logger.info(
+        "Saved checkpoint to %s (epoch=%d, best_val_loss=%.6f)",
+        path,
+        epoch,
+        best_val_loss,
+    )
 
 
 def load_checkpoint(path: Path, map_location: str = "cpu") -> dict[str, Any]:

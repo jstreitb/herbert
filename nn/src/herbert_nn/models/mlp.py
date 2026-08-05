@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """MLPPolicy: the single-tick baseline policy.
 
 Feeds one tick's encoded feature vector through a plain feed-forward trunk

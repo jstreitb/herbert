@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Herbert /nn: behavioral-cloning training pipeline for Hypixel Bridge duels.
 
 This package implements the full data -> model -> training -> evaluation

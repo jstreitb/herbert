@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Streaming, single-tick feature encoding: `TickRecordRL` -> the `/nn`-compatible feature arrays.
 
 This is the RL-side counterpart of `herbert_nn.data.features.encode_session_raw`, adapted for
@@ -55,6 +56,12 @@ class TickFeatureEncoder:
     """
 
     def __init__(self, cache_stats: NNCacheStats) -> None:
+        """Initialize the encoder.
+
+        Args:
+            cache_stats: Fitted standardizer/vocabularies/block-grid shape from the `/nn`
+                preprocessing cache the checkpoint being fine-tuned was trained against.
+        """
         self.cache_stats = cache_stats
         self._prev_x: float | None = None
         self._prev_y: float | None = None
@@ -73,7 +80,11 @@ class TickFeatureEncoder:
             BlockGridShapeError: If ``record.block_grid``'s dimensions don't match the shape the
                 configured `/nn` cache was built with.
         """
-        shape = (record.block_grid.width, record.block_grid.height, record.block_grid.depth)
+        shape = (
+            record.block_grid.width,
+            record.block_grid.height,
+            record.block_grid.depth,
+        )
         if shape != self.cache_stats.block_grid_shape:
             raise BlockGridShapeError(
                 f"tick {record.tick}: block_grid shape {shape} != /nn cache's canonical shape "
@@ -149,13 +160,19 @@ class TickFeatureEncoder:
                 continuous[_IDX["match_own_score_value"]] = float(mc.own_score)
                 continuous[_IDX["match_own_score_present"]] = 1.0
             if mc.opponent_score is not None:
-                continuous[_IDX["match_opponent_score_value"]] = float(mc.opponent_score)
+                continuous[_IDX["match_opponent_score_value"]] = float(
+                    mc.opponent_score
+                )
                 continuous[_IDX["match_opponent_score_present"]] = 1.0
             if mc.elapsed_seconds is not None:
-                continuous[_IDX["match_elapsed_seconds_value"]] = float(mc.elapsed_seconds)
+                continuous[_IDX["match_elapsed_seconds_value"]] = float(
+                    mc.elapsed_seconds
+                )
                 continuous[_IDX["match_elapsed_seconds_present"]] = 1.0
 
-        continuous = self.cache_stats.standardizer.transform(continuous[np.newaxis, :])[0]
+        continuous = self.cache_stats.standardizer.transform(continuous[np.newaxis, :])[
+            0
+        ]
 
         return TickFeatures(
             continuous=continuous,
@@ -166,7 +183,9 @@ class TickFeatureEncoder:
             ),
             opponent_held_item_category=opponent_held_item_category,
             match_kit_type=np.int64(
-                self.cache_stats.kit_type_vocab.encode(record.match.kit if record.match else None)
+                self.cache_stats.kit_type_vocab.encode(
+                    record.match.kit if record.match else None
+                )
             ),
         )
 

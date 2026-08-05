@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Custom PPO rollout collection for genuinely simultaneous two-sided Bridge self-play.
 
 Reuses `stable_baselines3`'s `PPO`/`DictRolloutBuffer`/GAE machinery, but does **not** use
@@ -20,7 +21,9 @@ from dataclasses import dataclass
 
 import numpy as np
 import torch
+from gymnasium import spaces
 from stable_baselines3 import PPO
+from stable_baselines3.common.buffers import DictRolloutBuffer
 from stable_baselines3.common.utils import obs_as_tensor
 
 from herbert_rl.env.action_wrapper import flat_action_to_command
@@ -42,6 +45,8 @@ class EpisodeStats:
 
 @dataclass
 class RolloutResult:
+    """Summary of one `collect_rollout` call, for feeding into the next call and for logging."""
+
     obs_a: dict
     obs_b: dict
     episodes: list[EpisodeStats]
@@ -76,8 +81,20 @@ def collect_rollout(
             f"rollout buffer must be sized for exactly 2 sides (n_envs=2), got "
             f"{model.rollout_buffer.n_envs}. Check that PPO was constructed with a 2-env VecEnv."
         )
+    if not isinstance(model.action_space, spaces.Box):
+        raise TypeError(
+            f"Expected a continuous Box action space (see env/action_wrapper.py), got "
+            f"{type(model.action_space).__name__}."
+        )
+    action_space: spaces.Box = model.action_space
+    if not isinstance(model.rollout_buffer, DictRolloutBuffer):
+        raise TypeError(
+            f"Expected a DictRolloutBuffer (the observation space is a Dict space -- see "
+            f"env/spaces.py), got {type(model.rollout_buffer).__name__}."
+        )
+    rollout_buffer: DictRolloutBuffer = model.rollout_buffer
     model.policy.set_training_mode(False)
-    model.rollout_buffer.reset()
+    rollout_buffer.reset()
 
     episode_starts = np.array([False, False])
     running_reward = np.zeros(2, dtype=np.float64)
@@ -98,7 +115,7 @@ def collect_rollout(
             obs_tensor = obs_as_tensor(stacked_obs, model.device)
             actions, values, log_probs = model.policy(obs_tensor)
         actions_np = actions.cpu().numpy()
-        clipped = np.clip(actions_np, model.action_space.low, model.action_space.high)
+        clipped = np.clip(actions_np, action_space.low, action_space.high)
 
         result_a, result_b = coordinator.advance(
             flat_action_to_command(clipped[0]), flat_action_to_command(clipped[1])
@@ -116,12 +133,15 @@ def collect_rollout(
             if truncated[i] and not terminated[i]:
                 with torch.no_grad():
                     next_obs_tensor = obs_as_tensor(
-                        {k: np.expand_dims(v, 0) for k, v in results[i].obs.items()}, model.device
+                        {k: np.expand_dims(v, 0) for k, v in results[i].obs.items()},
+                        model.device,
                     )
                     bootstrap_value = model.policy.predict_values(next_obs_tensor)[0]
                 rewards[i] += float(model.gamma) * float(bootstrap_value.item())
 
-        model.rollout_buffer.add(stacked_obs, clipped, rewards, episode_starts, values, log_probs)
+        rollout_buffer.add(
+            stacked_obs, clipped, rewards, episode_starts, values, log_probs
+        )
         model.num_timesteps += 2
 
         for i in range(2):
@@ -156,8 +176,12 @@ def collect_rollout(
 
     with torch.no_grad():
         stacked_obs = {key: np.stack([obs_a[key], obs_b[key]]) for key in obs_a}
-        last_values = model.policy.predict_values(obs_as_tensor(stacked_obs, model.device))
-    model.rollout_buffer.compute_returns_and_advantage(last_values=last_values, dones=last_dones)
+        last_values = model.policy.predict_values(
+            obs_as_tensor(stacked_obs, model.device)
+        )
+    rollout_buffer.compute_returns_and_advantage(
+        last_values=last_values, dones=last_dones
+    )
 
     n_ticks = n_steps * 2
     reward_breakdown_means = {k: v / n_ticks for k, v in breakdown_sums.items()}

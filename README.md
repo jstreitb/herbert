@@ -1,5 +1,12 @@
 # Herbert
 
+[![CI](https://github.com/jstreitb/herbert/actions/workflows/ci.yml/badge.svg)](https://github.com/jstreitb/herbert/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+
+> [!IMPORTANT]
+> THIS PROJECT IS COMPLETELY VIBE-CODED!.
+
 Herbert is an open-source, community-driven experiment in **imitation learning for Hypixel
 Bridge duels** (the 1v1 rush/PvP/build gamemode on the [Hypixel](https://hypixel.net) network,
 running on Minecraft 1.8.9).
@@ -30,39 +37,39 @@ with its own toolchain, dependencies, and README. The only things that connect t
 narrow data/artifact contracts:
 
 ```
- ┌──────────────┐   JSONL session log    ┌──────────────┐   pastes.dev URL   ┌──────────────┐
- │     /mod     │ ───────────────────►   │  pastes.dev  │ ─────────────────► │     /bot     │
- │ BridgeLogger │   (upload via HTTP)     │  (paste host)│   (Discord webhook) │ intake funnel│
- │ Forge 1.8.9  │                         └──────────────┘                    │  discord.py  │
- └──────────────┘                                                             └──────────────┘
-                                                                                      │
-                                                                                      │ validated
-                                                                                      │ pastes.dev
-                                                                                      │ URL, posted
-                                                                                      │ in Discord
-                                                                                      ▼
-                                                                              ┌──────────────┐
-                                                                              │      /nn     │
-                                                                              │  training     │
-                                                                              │  pipeline     │
-                                                                              │  (offline,    │
-                                                                              │  manual data   │
-                                                                              │  download)     │
-                                                                              └──────────────┘
+ ┌──────────────┐   JSONL session log (as a Discord file attachment)   ┌──────────────┐
+ │     /mod     │ ─────────────────────────────────────────────────►  │     /bot     │
+ │ BridgeLogger │        (direct webhook upload, no intermediate       │ intake funnel│
+ │ Forge 1.8.9  │              paste-hosting service)                 │  discord.py  │
+ └──────────────┘                                                     └──────────────┘
+                                                                               │
+                                                                               │ validated
+                                                                               │ session file,
+                                                                               │ posted
+                                                                               ▼
+                                                                       ┌──────────────┐
+                                                                       │      /nn     │
+                                                                       │  training     │
+                                                                       │  pipeline     │
+                                                                       │  (offline,    │
+                                                                       │  manual data   │
+                                                                       │  download)     │
+                                                                       └──────────────┘
 ```
 
 1. **[`/mod`](mod/) — BridgeLogger.** A Forge 1.8.9 mod that a community member runs while
    playing Bridge duels on Hypixel. It passively records synchronized player state,
    block-environment state, opponent state, and input/action data at a fixed tick rate. At the
-   end of a session it uploads the log to [pastes.dev](https://pastes.dev) and posts the
-   resulting URL to a shared Discord webhook. It is purely observational: it never sends game
-   packets, never simulates input, and never automates any in-game action.
+   end of a session it uploads the log directly to a shared Discord webhook as a file attachment
+   (splitting it into several messages first if it's too large for one). It is purely
+   observational: it never sends game packets, never simulates input, and never automates any
+   in-game action.
 
 2. **[`/bot`](bot/) — intake bot.** A `discord.py` bot that watches the community's intake
-   channel for the URLs the mod posts, validates that each one is a real, well-formed Herbert
-   session (fetches the paste, checks the header), and either acknowledges good submissions
-   (✅ reaction + thread reply) or silently deletes anything that doesn't match — keeping the
-   channel a clean feed of usable data.
+   channel for the session files the mod posts, validates that each one is a real, well-formed
+   Herbert session, and either acknowledges good submissions (✅ reaction + thread reply) or
+   silently deletes anything that doesn't match — keeping the channel a clean feed of usable
+   data.
 
 3. **[`/nn`](nn/) — training pipeline.** An offline Python pipeline that ingests the collected
    JSONL session files, preprocesses them into cached tensors, and trains small,
@@ -81,8 +88,9 @@ narrow data/artifact contracts:
 The **JSONL schema** produced by `/mod` (documented field-by-field in
 [`mod/README.md`](mod/README.md)) is the only contract between `/mod` and `/nn`, and `/rl`'s
 bridge client re-implements that same schema for its own bot-collected observations. The
-**pastes.dev URL format** (`https://pastes.dev/{key}`) is the only contract between `/mod` and
-`/bot`. `/rl` additionally consumes a `/nn` checkpoint file as a fine-tuning starting point (see
+**Discord webhook file-attachment upload** described in `mod/README.md`'s "Contract with the
+rest of the Herbert project" section is the contract between `/mod` and `/bot`. `/rl`
+additionally consumes a `/nn` checkpoint file as a fine-tuning starting point (see
 [`rl/README.md`](rl/README.md#constraints--contract-with-the-rest-of-the-project)) but does not
 share code with any other component. Each component can be built, tested, and evolved
 independently as long as those contracts hold.

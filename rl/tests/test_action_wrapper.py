@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Tests for `herbert_rl.env.action_wrapper` -- the flat Box <-> ActionCommand encoding."""
 
 from __future__ import annotations

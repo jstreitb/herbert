@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Tests for per-head losses and the composite weighted-sum loss."""
 
 from __future__ import annotations

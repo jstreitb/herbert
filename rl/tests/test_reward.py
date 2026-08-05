@@ -1,8 +1,14 @@
+# SPDX-License-Identifier: MIT
 """Tests for `herbert_rl.env.reward.RewardFunction` -- every reward case, with configurable weights."""
 
 from __future__ import annotations
 
-from factories import make_input_state, make_player_state, make_reward_weights, make_tick_record
+from factories import (
+    make_input_state,
+    make_player_state,
+    make_reward_weights,
+    make_tick_record,
+)
 from herbert_rl.env.reward import RewardFunction
 from herbert_rl.schema import MatchState
 
@@ -14,7 +20,9 @@ def test_goal_scored_awards_positive_weight():
     reward_fn = RewardFunction(weights)
     prev = make_tick_record(tick=0, match=MatchState(own_score=0, opponent_score=0))
     curr = make_tick_record(
-        tick=1, match=MatchState(own_score=1, opponent_score=0), player=make_player_state(vx=1.0)
+        tick=1,
+        match=MatchState(own_score=1, opponent_score=0),
+        player=make_player_state(vx=1.0),
     )
     breakdown = reward_fn.compute(prev, curr)
     assert breakdown.goal_scored == 2.5
@@ -28,7 +36,9 @@ def test_goal_conceded_awards_negative_weight():
     reward_fn = RewardFunction(weights)
     prev = make_tick_record(tick=0, match=MatchState(own_score=0, opponent_score=0))
     curr = make_tick_record(
-        tick=1, match=MatchState(own_score=0, opponent_score=1), player=make_player_state(vx=1.0)
+        tick=1,
+        match=MatchState(own_score=0, opponent_score=1),
+        player=make_player_state(vx=1.0),
     )
     breakdown = reward_fn.compute(prev, curr)
     assert breakdown.goal_conceded == -3.0
@@ -40,7 +50,9 @@ def test_no_score_change_gives_zero_goal_terms():
     reward_fn = RewardFunction(weights)
     prev = make_tick_record(tick=0, match=MatchState(own_score=1, opponent_score=1))
     curr = make_tick_record(
-        tick=1, match=MatchState(own_score=1, opponent_score=1), player=make_player_state(vx=1.0)
+        tick=1,
+        match=MatchState(own_score=1, opponent_score=1),
+        player=make_player_state(vx=1.0),
     )
     breakdown = reward_fn.compute(prev, curr)
     assert breakdown.goal_scored == 0.0
@@ -114,7 +126,9 @@ def test_bridge_progress_zero_when_no_placement():
     reward_fn = RewardFunction(weights)
     prev = make_tick_record(tick=0)
     curr = make_tick_record(
-        tick=1, player=make_player_state(vx=1.0), input=make_input_state(place_occurred=False)
+        tick=1,
+        player=make_player_state(vx=1.0),
+        input=make_input_state(place_occurred=False),
     )
     breakdown = reward_fn.compute(prev, curr)
     assert breakdown.bridge_progress == 0.0
@@ -134,7 +148,9 @@ def test_bridge_progress_falls_back_to_player_position_when_place_coords_null():
     curr = make_tick_record(
         tick=1,
         player=make_player_state(x=3.0, vx=1.0),
-        input=make_input_state(place_occurred=True, place_x=None, place_y=None, place_z=None),
+        input=make_input_state(
+            place_occurred=True, place_x=None, place_y=None, place_z=None
+        ),
     )
     breakdown = reward_fn.compute(prev, curr)
     assert breakdown.bridge_progress == 0.01
@@ -200,6 +216,46 @@ def test_reset_clears_bridge_progress_high_water_mark():
     breakdown = reward_fn.compute(new_prev, new_curr)
     # After reset, the high-water-mark is cleared, so even a "small" placement counts as new progress.
     assert breakdown.bridge_progress == 0.01
+
+
+def test_idle_penalty_nan_velocity_treated_as_neutral_not_crash():
+    # NaN comparisons are always False in Python; without an explicit guard this would
+    # silently skip the penalty instead of flagging the malformed observation.
+    weights = make_reward_weights(
+        goal_scored=0.0,
+        goal_conceded=0.0,
+        bridge_progress=0.0,
+        idle_penalty=-0.005,
+        idle_speed_threshold=0.02,
+    )
+    reward_fn = RewardFunction(weights)
+    prev = make_tick_record(tick=0)
+    curr = make_tick_record(tick=1, player=make_player_state(vx=float("nan"), vz=0.0))
+    breakdown = reward_fn.compute(prev, curr)
+    assert breakdown.idle_penalty == 0.0
+    assert breakdown.total == 0.0
+
+
+def test_bridge_progress_nan_placement_axis_treated_as_neutral_not_crash():
+    weights = make_reward_weights(
+        goal_scored=0.0,
+        goal_conceded=0.0,
+        bridge_progress=0.01,
+        idle_penalty=0.0,
+        bridge_axis="x",
+        own_goal_forward_sign=1,
+    )
+    reward_fn = RewardFunction(weights)
+    prev = make_tick_record(tick=0)
+    curr = make_tick_record(
+        tick=1,
+        player=make_player_state(x=float("nan"), vx=1.0),
+        input=make_input_state(
+            place_occurred=True, place_x=None, place_y=None, place_z=None
+        ),
+    )
+    breakdown = reward_fn.compute(prev, curr)
+    assert breakdown.bridge_progress == 0.0
 
 
 def test_total_combines_all_terms():

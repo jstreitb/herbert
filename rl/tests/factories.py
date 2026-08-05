@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Test factories: build minimal-but-valid `herbert_rl` objects without a real server/bridge."""
 
 from __future__ import annotations
@@ -18,19 +19,26 @@ from herbert_rl.vocab import CategoricalVocab
 
 DEFAULT_BLOCK_GRID_SHAPE = (7, 3, 7)
 DEFAULT_NUM_CELLS = (
-    DEFAULT_BLOCK_GRID_SHAPE[0] * DEFAULT_BLOCK_GRID_SHAPE[1] * DEFAULT_BLOCK_GRID_SHAPE[2]
+    DEFAULT_BLOCK_GRID_SHAPE[0]
+    * DEFAULT_BLOCK_GRID_SHAPE[1]
+    * DEFAULT_BLOCK_GRID_SHAPE[2]
 )
 
 
 def make_block_grid(
-    cells: list[str] | None = None, shape: tuple[int, int, int] = DEFAULT_BLOCK_GRID_SHAPE
+    cells: list[str] | None = None,
+    shape: tuple[int, int, int] = DEFAULT_BLOCK_GRID_SHAPE,
 ) -> BlockGrid:
     width, height, depth = shape
     num_cells = width * height * depth
     if cells is None:
         cells = ["AIR"] * num_cells
     return BlockGrid(
-        width=width, height=height, depth=depth, origin="player_feet_centered", cells=cells
+        width=width,
+        height=height,
+        depth=depth,
+        origin="player_feet_centered",
+        cells=cells,
     )
 
 
@@ -89,7 +97,8 @@ def make_tick_record(
         timestamp="2026-08-05T00:00:00.000Z",
         player=player or make_player_state(),
         block_grid=block_grid or make_block_grid(),
-        held_item=held_item or HeldItem(hotbar_slot=0, item_id="minecraft:wool", count=64),
+        held_item=held_item
+        or HeldItem(hotbar_slot=0, item_id="minecraft:wool", count=64),
         opponent=opponent,
         match=match,
         input=input or make_input_state(),
@@ -116,8 +125,11 @@ def make_opponent(**overrides) -> Opponent:
 
 
 def _fitted_vocab(name: str, size: int) -> CategoricalVocab:
-    """A `CategoricalVocab` with exactly ``size`` total entries (including the 2 reserved
-    special tokens), fit on ``size - 2`` synthetic distinct token values."""
+    """Build a `CategoricalVocab` with exactly ``size`` total entries.
+
+    Includes the 2 reserved special tokens, fit on ``size - 2`` synthetic distinct token
+    values.
+    """
     vocab = CategoricalVocab(name)
     vocab.fit([f"{name}_{i}" for i in range(max(size - 2, 0))])
     assert vocab.size == size

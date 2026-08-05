@@ -1,6 +1,9 @@
-"""Tests for `herbert_rl.env.match_coordinator.MatchCoordinator`, with a fake `BridgeProcess`
-standing in for a real Mineflayer bridge subprocess (see module docstring on `FakeBridgeProcess`)
-so these run without a server, per the task's "mock the Mineflayer bridge process" requirement.
+# SPDX-License-Identifier: MIT
+"""Tests for `herbert_rl.env.match_coordinator.MatchCoordinator`.
+
+Uses a fake `BridgeProcess` standing in for a real Mineflayer bridge subprocess (see
+`FakeBridgeProcess` below) so these run without a server, per the task's "mock the
+Mineflayer bridge process" requirement.
 """
 
 from __future__ import annotations
@@ -13,17 +16,23 @@ from factories import (
     make_tick_record,
 )
 from herbert_rl.env.ipc import ActionCommand
-from herbert_rl.env.match_coordinator import NO_OP_ACTION, MatchCoordinator, MatchEndConfig
+from herbert_rl.env.match_coordinator import (
+    NO_OP_ACTION,
+    MatchCoordinator,
+    MatchEndConfig,
+)
 from herbert_rl.env.reward import RewardFunction
 from herbert_rl.features import TickFeatureEncoder
 from herbert_rl.schema import MatchState
 
 
 class FakeBridgeProcess:
-    """A minimal stand-in for `herbert_rl.env.bridge_process.BridgeProcess`: implements only the
-    three methods `MatchCoordinator` calls (`send_action`, `send_reset`, `read_tick`, `close`),
-    returning pre-scripted `TickRecordRL`s instead of talking to a real Node.js/Mineflayer
-    process. Each call to `send_action` advances an internal cursor into `scripted_ticks`.
+    """A minimal stand-in for `herbert_rl.env.bridge_process.BridgeProcess`.
+
+    Implements only the three methods `MatchCoordinator` calls (`send_action`, `send_reset`,
+    `read_tick`, `close`), returning pre-scripted `TickRecordRL`s instead of talking to a
+    real Node.js/Mineflayer process. Each call to `send_action` advances an internal cursor
+    into `scripted_ticks`.
     """
 
     def __init__(self, initial_tick, scripted_ticks):
@@ -54,7 +63,9 @@ class FakeBridgeProcess:
 def _build_coordinator(bridge_a, bridge_b, window_length=1, match_end=None):
     cache_stats = make_cache_stats()
     weights_a = make_reward_weights()
-    weights_b = make_reward_weights(own_goal_forward_sign=-weights_a.own_goal_forward_sign)
+    weights_b = make_reward_weights(
+        own_goal_forward_sign=-weights_a.own_goal_forward_sign
+    )
     return MatchCoordinator(
         bridge_a=bridge_a,
         bridge_b=bridge_b,
@@ -105,12 +116,16 @@ def test_advance_sends_actions_to_both_bridges_and_returns_rewards():
 def test_advance_detects_match_end_via_score_threshold():
     initial = make_tick_record(tick=0, match=MatchState(own_score=2, opponent_score=0))
     winning_tick = make_tick_record(
-        tick=1, match=MatchState(own_score=3, opponent_score=0), player=make_player_state(vx=1.0)
+        tick=1,
+        match=MatchState(own_score=3, opponent_score=0),
+        player=make_player_state(vx=1.0),
     )
     bridge_a = FakeBridgeProcess(initial, [winning_tick])
     bridge_b = FakeBridgeProcess(initial, [initial])
     coordinator = _build_coordinator(
-        bridge_a, bridge_b, match_end=MatchEndConfig(score_threshold=3, chat_patterns=[])
+        bridge_a,
+        bridge_b,
+        match_end=MatchEndConfig(score_threshold=3, chat_patterns=[]),
     )
     coordinator.reset()
 
@@ -130,7 +145,9 @@ def test_advance_detects_match_end_via_chat_pattern():
     coordinator = _build_coordinator(
         bridge_a,
         bridge_b,
-        match_end=MatchEndConfig(score_threshold=None, chat_patterns=[r"has won the game"]),
+        match_end=MatchEndConfig(
+            score_threshold=None, chat_patterns=[r"has won the game"]
+        ),
     )
     coordinator.reset()
 
@@ -142,7 +159,9 @@ def test_advance_detects_match_end_via_chat_pattern():
 
 def test_advance_handles_disconnected_tick_without_crashing():
     initial = make_tick_record(tick=0)
-    disconnected_tick = make_tick_record(tick=1, disconnected=True, input=make_input_state())
+    disconnected_tick = make_tick_record(
+        tick=1, disconnected=True, input=make_input_state()
+    )
     bridge_a = FakeBridgeProcess(initial, [disconnected_tick])
     bridge_b = FakeBridgeProcess(initial, [initial])
     coordinator = _build_coordinator(bridge_a, bridge_b)

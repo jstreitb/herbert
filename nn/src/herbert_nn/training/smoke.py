@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Synthetic in-memory dataset used exclusively by ``herbert_nn.smoketest``.
 
 Generates random (but shape/dtype-correct) tensors matching exactly what
@@ -30,7 +31,7 @@ SMOKE_WINDOW_LENGTH = 8
 
 
 def smoke_data_meta() -> DataMeta:
-    """The tiny :class:`DataMeta` used by the synthetic smoke-test dataset/model."""
+    """Build the tiny :class:`DataMeta` used by the synthetic smoke-test dataset/model."""
     return DataMeta(
         block_grid_shape=SMOKE_BLOCK_GRID_SHAPE,
         item_type_vocab_size=SMOKE_ITEM_TYPE_VOCAB_SIZE,
@@ -42,32 +43,52 @@ def smoke_data_meta() -> DataMeta:
 class SyntheticDataset(Dataset):
     """Random tensors matching the real dataset's schema, for pipeline smoke-testing."""
 
-    def __init__(self, num_samples: int, data_meta: DataMeta, window_length: int | None) -> None:
-        """Args:
-        num_samples: Number of synthetic samples to generate.
-        data_meta: Determines categorical vocab sizes / block-grid cell count.
-        window_length: If ``None``, generate single-tick (MLP) samples; if an
-            int, generate windowed (GRU) samples with a leading window
-            dimension of this length.
+    def __init__(
+        self, num_samples: int, data_meta: DataMeta, window_length: int | None
+    ) -> None:
+        """Initialize the synthetic dataset.
+
+        Args:
+            num_samples: Number of synthetic samples to generate.
+            data_meta: Determines categorical vocab sizes / block-grid cell count.
+            window_length: If ``None``, generate single-tick (MLP) samples; if an
+                int, generate windowed (GRU) samples with a leading window
+                dimension of this length.
         """
         self.num_samples = num_samples
         self.data_meta = data_meta
         self.window_length = window_length
 
     def __len__(self) -> int:
+        """Return the configured number of synthetic samples."""
         return self.num_samples
 
     def __getitem__(self, index: int) -> dict[str, torch.Tensor]:
-        gen = torch.Generator().manual_seed(index)  # deterministic per-index, still "random"
+        """Generate one deterministic-per-index synthetic sample.
+
+        Args:
+            index: Sample index, used to seed the per-sample random generator so the same
+                index always yields the same tensors.
+
+        Returns:
+            A dict of tensors matching the real dataset's schema (see module docstring).
+        """
+        gen = torch.Generator().manual_seed(
+            index
+        )  # deterministic per-index, still "random"
         shape_prefix = () if self.window_length is None else (self.window_length,)
         num_cells = self.data_meta.num_block_cells
 
         sample = {
-            "continuous": torch.randn(*shape_prefix, CONTINUOUS_FEATURE_DIM, generator=gen),
+            "continuous": torch.randn(
+                *shape_prefix, CONTINUOUS_FEATURE_DIM, generator=gen
+            ),
             "block_grid_cells": torch.randint(
                 0, NUM_BLOCK_CELL_TYPES, (*shape_prefix, num_cells), generator=gen
             ),
-            "hotbar_slot_index": _randint_scalar_or_seq(NUM_HOTBAR_SLOTS, shape_prefix, gen),
+            "hotbar_slot_index": _randint_scalar_or_seq(
+                NUM_HOTBAR_SLOTS, shape_prefix, gen
+            ),
             "hotbar_item_type": _randint_scalar_or_seq(
                 self.data_meta.item_type_vocab_size, shape_prefix, gen
             ),
@@ -78,7 +99,9 @@ class SyntheticDataset(Dataset):
                 self.data_meta.kit_type_vocab_size, shape_prefix, gen
             ),
             "mouse_target": torch.randn(2, generator=gen),
-            "discrete_target": (torch.rand(NUM_DISCRETE_ACTIONS, generator=gen) > 0.5).float(),
+            "discrete_target": (
+                torch.rand(NUM_DISCRETE_ACTIONS, generator=gen) > 0.5
+            ).float(),
             "place_block_type": torch.randint(
                 0, self.data_meta.place_block_type_vocab_size, (1,), generator=gen
             ).squeeze(0),

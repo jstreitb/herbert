@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Shared pytest fixtures, built on top of the synthetic factories in ``factories.py``.
 
 None of these tests depend on real recorded session data -- every fixture
@@ -21,7 +22,7 @@ def block_grid_shape() -> tuple[int, int, int]:
 
 @pytest.fixture
 def raw_session_dir(tmp_path: Path) -> Path:
-    """A directory with 6 small synthetic sessions (for split / cache tests)."""
+    """Build a directory with 6 small synthetic sessions (for split / cache tests)."""
     raw_dir = tmp_path / "raw"
     raw_dir.mkdir()
     for i in range(6):

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """GRUPolicy: the sequence-aware policy over a sliding window of ticks.
 
 Encodes every tick in the window with the same :class:`FeatureEncoder` used

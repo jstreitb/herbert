@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Shared per-tick feature encoder used by both :class:`MLPPolicy` and :class:`GRUPolicy`.
 
 Turns one tick's raw feature tensors (the continuous vector plus several
@@ -53,13 +54,19 @@ class FeatureEncoder(nn.Module):
         """
         super().__init__()
         self.num_block_cells = num_block_cells
-        self.block_cell_embedding = nn.Embedding(block_cell_num_types, block_cell_embed_dim)
-        self.item_type_embedding = nn.Embedding(item_type_vocab_size, item_type_embed_dim)
+        self.block_cell_embedding = nn.Embedding(
+            block_cell_num_types, block_cell_embed_dim
+        )
+        self.item_type_embedding = nn.Embedding(
+            item_type_vocab_size, item_type_embed_dim
+        )
         self.kit_type_embedding = nn.Embedding(kit_type_vocab_size, kit_type_embed_dim)
         self.opponent_held_item_embedding = nn.Embedding(
             NUM_HELD_ITEM_CATEGORIES, held_item_embed_dim
         )
-        self.hotbar_slot_embedding = nn.Embedding(NUM_HOTBAR_SLOTS, hotbar_slot_embed_dim)
+        self.hotbar_slot_embedding = nn.Embedding(
+            NUM_HOTBAR_SLOTS, hotbar_slot_embed_dim
+        )
 
         self.output_dim = (
             CONTINUOUS_FEATURE_DIM
@@ -100,5 +107,6 @@ class FeatureEncoder(nn.Module):
         held_embed = self.opponent_held_item_embedding(opponent_held_item_category)
         slot_embed = self.hotbar_slot_embedding(hotbar_slot_index)
         return torch.cat(
-            [continuous, block_flat, item_embed, kit_embed, held_embed, slot_embed], dim=-1
+            [continuous, block_flat, item_embed, kit_embed, held_embed, slot_embed],
+            dim=-1,
         )

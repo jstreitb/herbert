@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Per-head test-set metrics: MAE (mouse), accuracy/F1/AUC (discrete), top-1/top-3 (block placement)."""
 
 from __future__ import annotations
@@ -105,13 +106,17 @@ def compute_metrics(collected: CollectedPredictions) -> dict[str, Any]:
                 raise ValueError("only one class present")
             auc = float(roc_auc_score(target, prob))
         except ValueError as exc:
-            logger.warning("Could not compute ROC-AUC for discrete action %r: %s", name, exc)
+            logger.warning(
+                "Could not compute ROC-AUC for discrete action %r: %s", name, exc
+            )
             auc = None
         discrete_metrics[name] = {"accuracy": accuracy, "f1": f1, "roc_auc": auc}
 
     place_indices = np.nonzero(collected.place_mask > 0.5)[0]
     if place_indices.size == 0:
-        logger.warning("No active place ticks in this split; block_placement metrics are null.")
+        logger.warning(
+            "No active place ticks in this split; block_placement metrics are null."
+        )
         block_metrics: dict[str, float | None] = {
             "top1_accuracy": None,
             "top3_accuracy": None,
@@ -131,4 +136,8 @@ def compute_metrics(collected: CollectedPredictions) -> dict[str, Any]:
             "num_place_ticks": int(place_indices.size),
         }
 
-    return {"mouse": mouse_metrics, "discrete": discrete_metrics, "block_placement": block_metrics}
+    return {
+        "mouse": mouse_metrics,
+        "discrete": discrete_metrics,
+        "block_placement": block_metrics,
+    }

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """``python -m herbert_nn.train`` -- Hydra-driven full training run.
 
 Examples:

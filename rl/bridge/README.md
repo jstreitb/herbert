@@ -19,6 +19,19 @@ cd rl/bridge
 npm install
 ```
 
+## Testing
+
+```bash
+npm run lint   # eslint
+npm test       # unit tests (node's built-in test runner), pure logic only -- no server needed
+```
+
+Both run automatically in CI (see `.github/workflows/ci.yml`'s `lint-bridge` job). The test
+suite (`test/`) covers the pure, server-independent logic (`angles.js`, `blockGrid.js`,
+`itemClassifier.js`, `actionExecutor.js`'s `clampPitch`, `matchState.js`'s scoreboard/chat
+parsing via a fake bot object) -- it does not spin up a real Mineflayer connection; for that,
+use the manual smoke test below or `python -m herbert_rl.train.smoketest`.
+
 ## Manual smoke test (connectivity only)
 
 ```bash

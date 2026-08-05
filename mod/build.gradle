@@ -47,6 +47,14 @@ repositories {
 dependencies {
     // Gson and java.net.HttpURLConnection both already ship with the Minecraft/Forge runtime,
     // so BridgeLogger intentionally declares no additional runtime dependencies here.
+
+    // JUnit 4 for unit tests (src/test/java). SessionChunker, SessionChunk, HashUtil,
+    // MatchContextParser, and BridgeDetector are deliberately written as pure logic with no
+    // Minecraft/Forge type dependencies, so they run here without a bootstrapped client. Note:
+    // BlockGridMapper and HeldItemCategoryMapper are equally pure in behavior but reference
+    // net.minecraft.init.Blocks/Items, whose static initializers require a fully bootstrapped
+    // Minecraft/FML environment to run -- see KNOWN_LIMITATIONS.md.
+    testCompile group: 'junit', name: 'junit', version: '4.13.2'
 }
 
 // Inject webhook URL from webhook.txt (local build-time config, never committed).

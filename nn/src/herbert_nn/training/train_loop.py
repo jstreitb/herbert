@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Full training loop orchestration, driven by a resolved Hydra config.
 
 Shared by the ``herbert_nn.train`` CLI. Builds the cache/datasets/model/
@@ -78,10 +79,18 @@ def run_training(cfg: DictConfig, run_dir: Path) -> dict[str, Any]:
     val_boundaries = cache_bundle.manifest.split_boundaries["val"]
 
     train_dataset = build_dataset(
-        train_tensors, train_boundaries, family, cfg.data.window_length, cfg.data.window_stride
+        train_tensors,
+        train_boundaries,
+        family,
+        cfg.data.window_length,
+        cfg.data.window_stride,
     )
     val_dataset = build_dataset(
-        val_tensors, val_boundaries, family, cfg.data.window_length, cfg.data.window_stride
+        val_tensors,
+        val_boundaries,
+        family,
+        cfg.data.window_length,
+        cfg.data.window_stride,
     )
     if len(train_dataset) == 0 or len(val_dataset) == 0:
         raise RuntimeError(
@@ -106,7 +115,9 @@ def run_training(cfg: DictConfig, run_dir: Path) -> dict[str, Any]:
         drop_last=False,
     )
 
-    model_cfg_dict = cast(dict[str, Any], OmegaConf.to_container(cfg.model, resolve=True))
+    model_cfg_dict = cast(
+        dict[str, Any], OmegaConf.to_container(cfg.model, resolve=True)
+    )
     model = build_model(model_cfg_dict, data_meta).to(device)
     logger.info(
         "Model (%s): %d trainable parameters",
@@ -119,7 +130,9 @@ def run_training(cfg: DictConfig, run_dir: Path) -> dict[str, Any]:
         lr=float(cfg.training.optimizer.lr),
         weight_decay=float(cfg.training.optimizer.weight_decay),
     )
-    steps_per_epoch = max(1, math.ceil(len(train_loader) / max(1, cfg.training.grad_accum_steps)))
+    steps_per_epoch = max(
+        1, math.ceil(len(train_loader) / max(1, cfg.training.grad_accum_steps))
+    )
     total_steps = steps_per_epoch * int(cfg.training.epochs)
     scheduler = build_lr_scheduler(
         optimizer,
@@ -164,7 +177,9 @@ def run_training(cfg: DictConfig, run_dir: Path) -> dict[str, Any]:
             grad_clip_norm=cfg.training.grad_clip_norm,
             is_train=True,
         )
-        val_metrics = run_epoch(model, val_loader, loss_fn, device, amp=use_amp, is_train=False)
+        val_metrics = run_epoch(
+            model, val_loader, loss_fn, device, amp=use_amp, is_train=False
+        )
         global_step += len(train_loader)
 
         logger.info(

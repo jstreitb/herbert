@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 package dev.herbert.bridgelogger.util;
 
 /**
@@ -76,20 +77,11 @@ public final class HerbertConstants {
     /** Maximum distance (blocks) at which another player is considered a trackable "opponent". */
     public static final double OPPONENT_MAX_DISTANCE_BLOCKS = 48.0;
 
-    /** Connect timeout for all outbound HTTP calls (pastes.dev, Discord webhook), in milliseconds. */
+    /** Connect timeout for all outbound HTTP calls (Discord webhook uploads), in milliseconds. */
     public static final int HTTP_CONNECT_TIMEOUT_MS = 10_000;
 
     /** Read timeout for all outbound HTTP calls, in milliseconds. */
     public static final int HTTP_READ_TIMEOUT_MS = 15_000;
-
-    /** pastes.dev anonymous paste creation endpoint. */
-    public static final String PASTES_DEV_POST_URL = "https://api.pastes.dev/post";
-
-    /** Prefix used to build a human-viewable pastes.dev URL from a paste key. */
-    public static final String PASTES_DEV_VIEW_URL_PREFIX = "https://pastes.dev/";
-
-    /** MIME type used when uploading the session log to pastes.dev. */
-    public static final String PASTES_DEV_CONTENT_TYPE = "text/plain";
 
     /** Discord embed side-bar color (decimal form of hex {@code 0x2ECC71}, a calm green). */
     public static final int DISCORD_EMBED_COLOR = 0x2ECC71;
@@ -138,8 +130,8 @@ public final class HerbertConstants {
      * upload as a single Discord webhook file attachment (see
      * {@link dev.herbert.bridgelogger.serialize.SessionChunker}). Also doubles as the threshold
      * that decides whether a session needs chunking at all: a file at or under this size uploads
-     * via the existing single-file pastes.dev + webhook-notify flow, unchanged; a file over it is
-     * split into chunks each targeting this size. 7 MiB, leaving roughly 1 MiB of headroom below
+     * to Discord as a single file attachment, unchanged; a file over it is split into chunks each
+     * targeting this size. 7 MiB, leaving roughly 1 MiB of headroom below
      * {@link #DISCORD_WEBHOOK_FILE_SIZE_LIMIT_BYTES}.
      */
     public static final int DEFAULT_TARGET_CHUNK_SIZE_BYTES = 7 * 1024 * 1024;

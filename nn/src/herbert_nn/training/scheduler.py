@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Cosine learning-rate schedule with linear warmup."""
 
 from __future__ import annotations

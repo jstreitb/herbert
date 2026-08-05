@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 package dev.herbert.bridgelogger.util;
 
 import java.nio.charset.StandardCharsets;

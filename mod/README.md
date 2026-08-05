@@ -2,10 +2,13 @@
 
 BridgeLogger is a Forge 1.8.9 client mod that **passively records** synchronized player-state,
 block-environment, opponent-state, and input/action data at fixed tick resolution while you play
-Hypixel Bridge duels, then automatically uploads the resulting log to
-[pastes.dev](https://pastes.dev) and posts the link to a Discord webhook. The logs are intended
-as training data for the Herbert project's imitation-learning pipeline (see `/nn` in the project
-root).
+Hypixel Bridge duels, then automatically uploads the resulting log directly to a configured
+Discord webhook as a file attachment. The logs are intended as training data for the Herbert
+project's imitation-learning pipeline (see `/nn` in the project root).
+
+**This mod does not use any third-party paste-hosting service.** Every session is uploaded
+straight to Discord as a file attachment on the webhook message itself — there is no intermediate
+paste site, and no link-based upload step.
 
 ## This mod is purely observational
 
@@ -25,7 +28,7 @@ action.** It does not inject input back into the game client. Concretely:
   being sent, so it doesn't show up in public chat. This is a consent/privacy mechanism, not
   gameplay automation — it never sends a message *for* the player, never fabricates input, and
   only ever intercepts the exact reply they typed to a prompt the mod itself printed.
-- All network I/O (pastes.dev upload, Discord webhook) is a plain HTTP `POST` of an already
+- All network I/O (the Discord webhook file upload) is a plain HTTP `POST` of an already
   completed session log, run on a background thread — the mod never talks to the Minecraft/
   Hypixel server itself beyond the normal vanilla game connection (and, as above, the one chat
   message it ever prevents from being sent).
@@ -47,17 +50,10 @@ observing it, please open an issue — that would be a bug, not a feature.
 This project ships as a standard Forge 1.8.9 MDK (ForgeGradle 2.x, the
 `net.minecraftforge.gradle.forge` plugin) Gradle project.
 
-The Gradle wrapper **jar** binary is intentionally not committed to this repository (binaries
-should not be vendored without a build step producing them). `gradle/wrapper/gradle-wrapper.properties`
-*is* committed and pins the wrapper to Gradle 2.14, which is compatible with ForgeGradle 2.1 for
-1.8.9. Before your first build, generate the wrapper scripts/jar once using a system-installed
-Gradle:
-
-```sh
-gradle wrapper --gradle-version 2.14
-```
-
-After that, build normally:
+The Gradle wrapper (`gradlew`, `gradlew.bat`, and `gradle/wrapper/gradle-wrapper.jar`) is
+committed to this repository and pinned to Gradle 2.14 via
+`gradle/wrapper/gradle-wrapper.properties`, which is compatible with ForgeGradle 2.1 for 1.8.9.
+No system-installed Gradle is required — build directly:
 
 ```sh
 ./gradlew build
@@ -72,6 +68,20 @@ To iterate locally in a dev client instead of building a jar:
 ```sh
 ./gradlew runClient
 ```
+
+## Testing
+
+```sh
+./gradlew test
+```
+
+runs the unit test suite (`src/test/java`), and is also run automatically as part of
+`./gradlew build`. Coverage focuses on the classes deliberately written as pure, client-independent
+logic: `HashUtil`, `BridgeDetector`, `MatchContextParser`, `SessionChunk`, and `SessionChunker`.
+`BlockGridMapper` and `HeldItemCategoryMapper` are equally pure in behavior, but their static
+`net.minecraft.init.Blocks`/`Items` references require a fully bootstrapped Minecraft/FML
+environment to class-load and so cannot be exercised by a plain JUnit run — see
+[`KNOWN_LIMITATIONS.md`](../KNOWN_LIMITATIONS.md) at the project root.
 
 ## Installation
 
@@ -97,8 +107,8 @@ category. Every key below is written with an inline doc comment in the generated
 | `sampleRateDivisor` | int | `1` | Log every Nth client tick. `1` = every tick (~20Hz), `2` = ~10Hz, etc. Minimum `1`. |
 | `opponentTrackingEnabled` | bool | `true` | If true, record the nearest opponent's relative state each tick (see schema below). |
 | `scoreboardParsingEnabled` | bool | `true` | If true, best-effort parse the Hypixel scoreboard for match context (scores, timer, kit). |
-| `discordWebhookUrl` | string | `` (empty) | Discord webhook URL for upload announcements. **If left empty, the entire upload flow (both the pastes.dev upload and the Discord post) is skipped**, and a chat warning is shown instead of attempting any network request. |
-| `dryRunMode` | bool | `false` | If true, sessions are still written to disk as JSONL, but the upload step is skipped entirely (no pastes.dev, no Discord). Useful for local-only testing. |
+| `discordWebhookUrl` | string | `` (empty) | Discord webhook URL every completed session is uploaded to directly, as a file attachment (this mod does not use any paste-hosting service). **If left empty, the upload is skipped**, and a chat warning is shown instead of attempting any network request. |
+| `dryRunMode` | bool | `false` | If true, sessions are still written to disk as JSONL, but the Discord upload step is skipped entirely. Useful for local-only testing. |
 | `voidThresholdY` | int | `0` | World Y coordinate at/below which an air block-grid cell is classified as `VOID` instead of `AIR`. Hypixel does not expose a real "void block" — the void is just open air below the islands — so this is a best-effort heuristic; tune it per map if needed. |
 | `bridgeScoreboardTitleMatches` | string list | `BRIDGE`, `THE BRIDGE`, `DUEL` | Case-insensitive substrings checked against the scoreboard sidebar title to auto-detect a Bridge duel. Tune if Hypixel changes its wording. |
 | `bridgeServerAddressMatches` | string list | `hypixel.net` | Case-insensitive substrings checked against the current server address to auto-detect a Hypixel connection. |
@@ -148,20 +158,22 @@ may need per-user/per-server tuning:
    - If `dryRunMode` is enabled, the upload is skipped entirely (the file stays on disk).
    - Else if `discordWebhookUrl` is empty, the upload is skipped and `Herbert: no webhook
      configured, skipping upload` is shown instead.
-   - Else, if the completed file is **at or under `targetChunkSizeBytes`** (the common case), the
-     existing single-file flow runs, unchanged: the file is POSTed to
-     `https://api.pastes.dev/post` as `text/plain`, the returned paste key is used to build
-     `https://pastes.dev/{key}`, and a Discord webhook message is posted containing that URL plus
-     session metadata (duration, tick count, schema version, mod version) and the label `Herbert
-     session upload — {duration}s / {tick_count} ticks`. On success, `Upload complete:
-     https://pastes.dev/{key}` is printed to chat.
+   - Else, if the completed file is **at or under `targetChunkSizeBytes`** (the common case), it
+     is uploaded directly to the Discord webhook as a single file attachment (a
+     `multipart/form-data` POST, not a plain JSON message), with an embed showing the session ID,
+     duration, tick count, file size, and schema/mod version. On success, `Herbert: Upload
+     complete.` is printed to chat.
    - Else (the file is **over** `targetChunkSizeBytes`), the mod automatically splits it and
-     uploads each piece directly to Discord — see "Chunked uploads" below. **A session is never
-     silently dropped for being too large.**
-   - On any single-file-flow failure (network error, non-2xx response, malformed response), the
-     error is logged to the mod's logger with a full stack trace, `Upload failed: {reason}` is
-     printed to chat, and **the local `.jsonl` file is left intact on disk** — it is never
-     deleted on failure.
+     uploads each piece as its own Discord message — see "Chunked uploads" below. **A session is
+     never silently dropped for being too large.**
+   - On any upload failure (network error, non-2xx response), the error is logged to the mod's
+     logger with a full stack trace, `Upload failed: {reason}` is printed to chat, and **the
+     local `.jsonl` file is left intact on disk** — it is never deleted on failure.
+
+This mod does not use pastes.dev or any other paste-hosting service, for either the single-file
+or chunked path — every upload goes straight to the configured Discord webhook as a file
+attachment on the message itself. (Earlier revisions of this mod posted the file to pastes.dev
+and only linked it from Discord; that indirection has been removed entirely.)
 
 ## Chunked uploads
 
@@ -187,11 +199,10 @@ message.
   make sense of it. The header copy is byte-for-byte identical to the original except for two
   appended fields, `chunk_index` (0-based) and `chunk_total` — see the schema section below.
 - **Chunks upload sequentially, never in parallel**, with a `chunkUploadDelayMillis` pause
-  between each one, to stay under Discord's per-webhook rate limit. Unlike the single-file path,
-  a chunked upload does **not** go through pastes.dev at all — each chunk's file is attached
+  between each one, to stay under Discord's per-webhook rate limit. Each chunk's file is attached
   directly to its own webhook message (a `multipart/form-data` POST), whose embed shows which
   part it is, the session ID, the tick range that chunk covers, its file size, and the same
-  duration/tick-count/schema/mod-version metadata as a normal upload.
+  duration/tick-count/schema/mod-version metadata as a single-file upload.
 - Chat feedback during a chunked upload:
   - `Herbert: Session too large for a single upload — splitting into {T} parts. (uploading
     1/{T}...)` — printed once, before the first chunk upload.
@@ -204,13 +215,9 @@ message.
     disk at `{path}` (the same `logOutputDirectory` the chunks were already written to) so nothing
     is lost.
 
-**Known gap:** `/bot`'s intake validator currently recognizes a completed upload by scanning a
-webhook message's plain-text `content` field for a pastes.dev URL (see the `notify()` payload
-comment in `DiscordWebhookNotifier`). A chunked upload's messages carry no pastes.dev URL at all
-— the file is attached directly — so `/bot` does not currently recognize chunked-session webhook
-messages as valid Herbert submissions. This mod's job (per "Strict separation of concerns" in
-`CONTRIBUTING.md`) stops at documenting the contract accurately; teaching `/bot` to also accept
-direct file-attachment messages is a follow-up for that component, not addressed here.
+`/bot`'s intake validator recognizes a completed upload directly by its file attachment (a
+`.jsonl` file, matched regardless of chunking), not by scanning message text for a link — so both
+the single-file and chunked upload paths above are recognized identically by the intake pipeline.
 
 ## JSONL schema (contract for `/nn`)
 
@@ -265,7 +272,7 @@ A chunk's header (e.g. line 1 of `herbert_session_b3a1e6d2-...._part2of3.jsonl`)
 |---|---|---|
 | `schema_version` | string (semver) | Version of the per-tick schema documented below. |
 | `herbert_mod_version` | string | BridgeLogger build version that produced the file. |
-| `session_id` | string (UUID v4) | Also used as the (non-chunked) log filename. Identical across every chunk of a chunked session, letting `/bot`/`/nn` associate chunks with each other if they're ever taught to. |
+| `session_id` | string (UUID v4) | Also used as the (non-chunked) log filename. Identical across every chunk of a chunked session, letting `/bot` associate chunks with each other (see its "Chunked sessions" section) and `/nn` do the same if it's ever taught to. |
 | `recording_start_timestamp` | string (ISO-8601, UTC) | When recording started. |
 | `player_username_hash` | string (64 hex chars) | **SHA-256 hex digest of the player's Minecraft username.** See "Privacy" below — the raw username is never written anywhere else. Always present, regardless of `player_username_display`. |
 | `player_username_display` | string | **Optional, added in schema `1.1.0`.** The player's raw Minecraft username, present **only** if they answered `y` to the session-end "display your username publicly?" chat prompt (see "Session lifecycle & upload flow" above). Omitted entirely (never `null`, never an empty string) whenever they answered `n`, let the prompt time out, or gave invalid input twice. Absent in every `1.0.0` file. |
@@ -408,9 +415,9 @@ mod/
     config/HerbertConfig.java       — Forge Configuration wrapper
     model/                          — plain data classes (de)serialized to/from JSONL
     capture/                        — tick sampling, block/held-item classification, scoreboard parsing, Bridge detection
-    serialize/                      — JSONL (de)serialization + async disk writer
+    serialize/                      — JSONL (de)serialization, async disk writer, oversized-session chunking
     session/SessionManager.java     — lifecycle state machine, tick handler, event glue
-    upload/                         — pastes.dev + Discord webhook HTTP clients
+    upload/DiscordWebhookNotifier.java — direct-to-Discord file-attachment upload client
     command/HerbertCommands.java    — /herbert start|stop|status
     util/                           — constants, SHA-256 hashing, scoreboard reading helpers
 ```
@@ -421,4 +428,9 @@ This mod is one of three independent components in the Herbert project (`/mod`, 
 There is no shared code between them — the only contracts are:
 
 1. The JSONL schema documented above, which `/nn` consumes.
-2. The `https://pastes.dev/{key}` URL format posted to Discord, which `/bot` validates.
+2. The Discord webhook message a completed session is posted as: a `multipart/form-data` message
+   whose JSON `content` reads `Herbert session upload — {duration}s / {tick_count} ticks (session
+   {session_id})` (or, for a chunked session, `Herbert session upload — part {N} of {T} (session
+   {session_id})`) and which carries the session's `.jsonl` file (or one chunk of it) as a direct
+   file attachment. `/bot`'s intake validator consumes this contract directly, recognizing a
+   submission by its `.jsonl` file attachment rather than by message text.

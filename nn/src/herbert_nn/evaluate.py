@@ -1,4 +1,5 @@
-"""``python -m herbert_nn.evaluate`` -- load a checkpoint, score it on a held-out split.
+# SPDX-License-Identifier: MIT
+r"""``python -m herbert_nn.evaluate`` -- load a checkpoint, score it on a held-out split.
 
 Loads the model architecture and weights from a checkpoint (as written by
 ``herbert_nn.train``), reloads the exact preprocessing cache it was trained
@@ -7,7 +8,7 @@ block-placement top-1/top-3 accuracy) on the requested split. Metrics are
 written as JSON, by default alongside the checkpoint.
 
 Example:
-    python -m herbert_nn.evaluate --checkpoint runs/default/2026-08-04_12-00-00/best.pt \\
+    python -m herbert_nn.evaluate --checkpoint runs/default/2026-08-04_12-00-00/best.pt \
         --split test
 """
 
@@ -36,7 +37,9 @@ def build_arg_parser() -> argparse.ArgumentParser:
         description="Evaluate a trained herbert_nn checkpoint on a held-out data split.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    parser.add_argument("--checkpoint", required=True, help="Path to a .pt checkpoint file.")
+    parser.add_argument(
+        "--checkpoint", required=True, help="Path to a .pt checkpoint file."
+    )
     parser.add_argument(
         "--split",
         default="test",
@@ -48,8 +51,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
         default=None,
         help="Directory to write metrics.json into. Defaults to the checkpoint's parent directory.",
     )
-    parser.add_argument("--batch-size", type=int, default=256, help="Evaluation batch size.")
-    parser.add_argument("--num-workers", type=int, default=2, help="DataLoader worker processes.")
+    parser.add_argument(
+        "--batch-size", type=int, default=256, help="Evaluation batch size."
+    )
+    parser.add_argument(
+        "--num-workers", type=int, default=2, help="DataLoader worker processes."
+    )
     parser.add_argument(
         "--device", default="auto", help='Device to run on: "auto", "cpu", or "cuda".'
     )
@@ -83,21 +90,36 @@ def main(argv: list[str] | None = None) -> None:
 
     cache_bundle = load_cache_bundle(checkpoint["cache_path"])
     resolved_data_cfg = cache_bundle.manifest.resolved_config
-    window_length = args.window_length or int(resolved_data_cfg["window_length"])
-    window_stride = args.window_stride or int(resolved_data_cfg["window_stride"])
+    # `or` would treat an explicit `--window-length 0` the same as "not passed", falling
+    # back to the cache's configured value instead of the (invalid, but explicit) 0.
+    window_length = (
+        args.window_length
+        if args.window_length is not None
+        else int(resolved_data_cfg["window_length"])
+    )
+    window_stride = (
+        args.window_stride
+        if args.window_stride is not None
+        else int(resolved_data_cfg["window_stride"])
+    )
 
     family = checkpoint["model_cfg"]["family"]
     tensors = cache_bundle.load_split(args.split)
     boundaries = cache_bundle.manifest.split_boundaries[args.split]
     dataset = build_dataset(tensors, boundaries, family, window_length, window_stride)
     if len(dataset) == 0:
-        raise RuntimeError(f"The {args.split!r} split produced 0 samples for family={family!r}.")
+        raise RuntimeError(
+            f"The {args.split!r} split produced 0 samples for family={family!r}."
+        )
     loader = DataLoader(
         dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers
     )
 
     logger.info(
-        "Evaluating %s checkpoint on split=%s (%d samples)...", family, args.split, len(dataset)
+        "Evaluating %s checkpoint on split=%s (%d samples)...",
+        family,
+        args.split,
+        len(dataset),
     )
     collected = collect_predictions(model, loader, device)
     metrics = compute_metrics(collected)

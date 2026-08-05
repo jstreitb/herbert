@@ -1,4 +1,5 @@
-"""``python -m herbert_rl.train.smoketest`` -- end-to-end IPC loop validation against a real server.
+# SPDX-License-Identifier: MIT
+r"""``python -m herbert_rl.train.smoketest`` -- end-to-end IPC loop validation against a real server.
 
 **Unlike `/nn`'s smoke test (`herbert_nn.smoketest`), this one requires a real, reachable
 Minecraft 1.8.9 server** (your own private one -- see `rl/server/SETUP.md`) and spawns two real
@@ -14,7 +15,7 @@ plumbing is confirmed sound and any subsequent `rl.train` failure is a training-
 
 Example::
 
-    python -m herbert_rl.train.smoketest --host 192.168.1.50 --port 25565 \\
+    python -m herbert_rl.train.smoketest --host 192.168.1.50 --port 25565 \
         --nn-cache-manifest-path /path/to/nn/data/cache/<hash>
 """
 
@@ -35,12 +36,15 @@ logger = logging.getLogger(__name__)
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
+    """Build the argparse parser for this CLI."""
     parser = argparse.ArgumentParser(
         description="End-to-end smoke test of the herbert_rl env/bridge/IPC loop against a real "
         "Minecraft 1.8.9 server, using uniformly random actions (no /nn checkpoint, no PPO).",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    parser.add_argument("--host", required=True, help="Your private Minecraft 1.8.9 server host.")
+    parser.add_argument(
+        "--host", required=True, help="Your private Minecraft 1.8.9 server host."
+    )
     parser.add_argument("--port", type=int, default=25565)
     parser.add_argument("--username-a", default="HerbertBot1")
     parser.add_argument("--username-b", default="HerbertBot2")
@@ -76,13 +80,16 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> None:
+    """CLI entry point."""
     parser = build_arg_parser()
     args = parser.parse_args(argv)
     configure_logging(level=getattr(logging, args.log_level.upper()))
 
     cache_stats = load_nn_cache_stats(args.nn_cache_manifest_path)
     reward_weights_a = RewardWeights()
-    reward_weights_b = RewardWeights(own_goal_forward_sign=-reward_weights_a.own_goal_forward_sign)
+    reward_weights_b = RewardWeights(
+        own_goal_forward_sign=-reward_weights_a.own_goal_forward_sign
+    )
     match_end = MatchEndConfig()
 
     env_a, env_b, coordinator = make_duel_envs(

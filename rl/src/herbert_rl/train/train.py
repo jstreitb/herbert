@@ -1,4 +1,5 @@
-"""``python -m herbert_rl.train.train`` -- Hydra-driven PPO fine-tuning of a `/nn` checkpoint.
+# SPDX-License-Identifier: MIT
+r"""``python -m herbert_rl.train.train`` -- Hydra-driven PPO fine-tuning of a `/nn` checkpoint.
 
 Requires two bot accounts able to connect to your own private, self-hosted Minecraft 1.8.9
 server (see `rl/server/SETUP.md`) -- this spawns two real `/rl/bridge` Node.js processes and
@@ -7,9 +8,9 @@ which still needs a real server but skips the pretrained checkpoint).
 
 Example::
 
-    python -m herbert_rl.train.train \\
-        pretrained_checkpoint_path=/path/to/nn/runs/gru_run1/2026-08-04_12-00-00/best.pt \\
-        nn_cache_manifest_path=/path/to/nn/data/cache/<hash> \\
+    python -m herbert_rl.train.train \
+        pretrained_checkpoint_path=/path/to/nn/runs/gru_run1/2026-08-04_12-00-00/best.pt \
+        nn_cache_manifest_path=/path/to/nn/data/cache/<hash> \
         env.host=192.168.1.50 env.port=25565
 
 Every run writes to ``runs/{experiment_name}/{timestamp}/`` (same convention as `/nn`):
@@ -104,15 +105,19 @@ def run_training(cfg: DictConfig, run_dir: Path) -> dict[str, Any]:
             result = collect_rollout(model, coordinator, obs_a, obs_b, n_steps)
             obs_a, obs_b = result.obs_a, result.obs_b
 
-            model._update_current_progress_remaining(model.num_timesteps, total_timesteps_target)
+            model._update_current_progress_remaining(
+                model.num_timesteps, total_timesteps_target
+            )
             model.train()
 
             mean_episode_reward = None
             if result.episodes:
-                mean_episode_reward = sum(e.total_reward for e in result.episodes) / len(
+                mean_episode_reward = sum(
+                    e.total_reward for e in result.episodes
+                ) / len(result.episodes)
+                mean_episode_length = sum(e.length for e in result.episodes) / len(
                     result.episodes
                 )
-                mean_episode_length = sum(e.length for e in result.episodes) / len(result.episodes)
                 mean_goal_diff = sum(
                     (e.final_own_score or 0) - (e.final_opponent_score or 0)
                     for e in result.episodes
@@ -128,12 +133,18 @@ def run_training(cfg: DictConfig, run_dir: Path) -> dict[str, Any]:
                 if mean_episode_reward is not None:
                     model.logger.record("rollout/ep_rew_mean", mean_episode_reward)
                     model.logger.record("rollout/ep_len_mean", mean_episode_length)
-                    model.logger.record("rollout/goal_differential_mean", mean_goal_diff)
+                    model.logger.record(
+                        "rollout/goal_differential_mean", mean_goal_diff
+                    )
                 model.logger.record("time/update", update)
                 model.logger.dump(model.num_timesteps)
                 logger.info(
                     "update %d/%d | timesteps=%d | mean_reward_per_tick=%.5f | episodes_completed=%d"
-                    + (" | mean_ep_reward=%.4f" if mean_episode_reward is not None else ""),
+                    + (
+                        " | mean_ep_reward=%.4f"
+                        if mean_episode_reward is not None
+                        else ""
+                    ),
                     *(
                         (
                             update,
@@ -142,12 +153,19 @@ def run_training(cfg: DictConfig, run_dir: Path) -> dict[str, Any]:
                             result.mean_reward,
                             len(result.episodes),
                         )
-                        + ((mean_episode_reward,) if mean_episode_reward is not None else ())
+                        + (
+                            (mean_episode_reward,)
+                            if mean_episode_reward is not None
+                            else ()
+                        )
                     ),
                 )
 
             model.save(str(run_dir / "last.zip"))
-            if mean_episode_reward is not None and mean_episode_reward > best_mean_episode_reward:
+            if (
+                mean_episode_reward is not None
+                and mean_episode_reward > best_mean_episode_reward
+            ):
                 best_mean_episode_reward = mean_episode_reward
                 model.save(str(run_dir / "best.zip"))
                 logger.info(
@@ -175,7 +193,9 @@ def run_training(cfg: DictConfig, run_dir: Path) -> dict[str, Any]:
         "experiment_name": str(cfg.experiment_name),
         "updates_run": num_updates,
         "best_mean_episode_reward": (
-            best_mean_episode_reward if best_mean_episode_reward != float("-inf") else None
+            best_mean_episode_reward
+            if best_mean_episode_reward != float("-inf")
+            else None
         ),
         "history": history,
         "run_dir": str(run_dir),

@@ -1,5 +1,7 @@
-"""``python -m herbert_rl.train.evaluate`` -- load a PPO checkpoint, run N self-play episodes,
-print win-rate and average reward.
+# SPDX-License-Identifier: MIT
+r"""``python -m herbert_rl.train.evaluate`` -- load a PPO checkpoint, run N self-play episodes.
+
+Prints win-rate and average reward.
 
 Since Herbert RL trains via *symmetric* self-play (both sides of the duel share one policy --
 see `env/match_coordinator.py`), evaluating "the policy" necessarily means running it against
@@ -14,7 +16,7 @@ Requires a real server connection, like `rl.train`/`rl.smoketest` (see `rl/serve
 
 Example::
 
-    python -m herbert_rl.train.evaluate --checkpoint runs/default/2026-08-05_.../best.zip \\
+    python -m herbert_rl.train.evaluate --checkpoint runs/default/2026-08-05_.../best.zip \
         --host 192.168.1.50 --nn-cache-manifest-path /path/to/nn/data/cache/<hash> --episodes 10
 """
 
@@ -28,6 +30,7 @@ from statistics import mean
 
 import numpy as np
 import torch
+from gymnasium import spaces
 from stable_baselines3 import PPO
 from stable_baselines3.common.utils import obs_as_tensor
 
@@ -43,6 +46,7 @@ logger = logging.getLogger(__name__)
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
+    """Build the argparse parser for this CLI."""
     parser = argparse.ArgumentParser(
         description="Evaluate a trained herbert_rl PPO checkpoint via self-play, over N episodes.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -77,6 +81,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> None:
+    """CLI entry point."""
     parser = build_arg_parser()
     args = parser.parse_args(argv)
     configure_logging(level=getattr(logging, args.log_level.upper()))
@@ -84,10 +89,18 @@ def main(argv: list[str] | None = None) -> None:
     device = resolve_device(args.device)
     model = PPO.load(args.checkpoint, device=device)
     logger.info("Loaded PPO checkpoint from %s onto device=%s", args.checkpoint, device)
+    if not isinstance(model.action_space, spaces.Box):
+        raise TypeError(
+            f"Expected a continuous Box action space (see env/action_wrapper.py), got "
+            f"{type(model.action_space).__name__}."
+        )
+    action_space: spaces.Box = model.action_space
 
     cache_stats = load_nn_cache_stats(args.nn_cache_manifest_path)
     reward_weights_a = RewardWeights()
-    reward_weights_b = RewardWeights(own_goal_forward_sign=-reward_weights_a.own_goal_forward_sign)
+    reward_weights_b = RewardWeights(
+        own_goal_forward_sign=-reward_weights_a.own_goal_forward_sign
+    )
 
     _env_a, _env_b, coordinator = make_duel_envs(
         host=args.host,
@@ -121,13 +134,17 @@ def main(argv: list[str] | None = None) -> None:
                 stacked_obs = {key: np.stack([obs_a[key], obs_b[key]]) for key in obs_a}
                 with torch.no_grad():
                     actions, _, _ = model.policy(
-                        obs_as_tensor(stacked_obs, model.device), deterministic=not args.stochastic
+                        obs_as_tensor(stacked_obs, model.device),
+                        deterministic=not args.stochastic,
                     )
                 actions_np = np.clip(
-                    actions.cpu().numpy(), model.action_space.low, model.action_space.high
+                    actions.cpu().numpy(),
+                    action_space.low,
+                    action_space.high,
                 )
                 result_a, result_b = coordinator.advance(
-                    flat_action_to_command(actions_np[0]), flat_action_to_command(actions_np[1])
+                    flat_action_to_command(actions_np[0]),
+                    flat_action_to_command(actions_np[1]),
                 )
                 ep_reward_a += result_a.reward
                 ep_reward_b += result_b.reward

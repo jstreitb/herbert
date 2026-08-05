@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Read an `/nn` preprocessing cache's `manifest.json` without importing `herbert_nn`.
 
 A `/nn` checkpoint's weights (in particular the `FeatureEncoder`'s embedding tables and the
@@ -36,6 +37,7 @@ class NNCacheStats:
 
     @property
     def num_block_cells(self) -> int:
+        """Total flattened block-grid cell count (``width * height * depth``)."""
         w, h, d = self.block_grid_shape
         return w * h * d
 
@@ -68,7 +70,7 @@ def load_nn_cache_stats(manifest_path: str | Path) -> NNCacheStats:
         )
     data = json.loads(path.read_text())
     stats = NNCacheStats(
-        block_grid_shape=tuple(data["block_grid_shape"]),  # type: ignore[arg-type]
+        block_grid_shape=tuple(data["block_grid_shape"]),
         standardizer=Standardizer.from_dict(data["standardizer"]),
         item_type_vocab=CategoricalVocab.from_dict(data["item_type_vocab"]),
         kit_type_vocab=CategoricalVocab.from_dict(data["kit_type_vocab"]),

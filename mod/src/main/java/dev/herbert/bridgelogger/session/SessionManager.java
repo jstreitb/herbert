@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 package dev.herbert.bridgelogger.session;
 
 import java.io.File;
@@ -28,8 +29,6 @@ import dev.herbert.bridgelogger.serialize.SessionChunk;
 import dev.herbert.bridgelogger.serialize.SessionChunker;
 import dev.herbert.bridgelogger.serialize.SessionSerializer;
 import dev.herbert.bridgelogger.upload.DiscordWebhookNotifier;
-import dev.herbert.bridgelogger.upload.PastesDevUploader;
-import dev.herbert.bridgelogger.upload.UploadResult;
 import dev.herbert.bridgelogger.util.HashUtil;
 import dev.herbert.bridgelogger.util.HerbertConstants;
 import dev.herbert.bridgelogger.util.ScoreboardUtil;
@@ -72,7 +71,6 @@ public final class SessionManager {
     private final HerbertConfig config;
     private final TickSampler tickSampler;
     private final SessionSerializer serializer;
-    private final PastesDevUploader pastesDevUploader;
     private final DiscordWebhookNotifier discordWebhookNotifier;
     private final ExecutorService uploadExecutor;
     private final ScheduledExecutorService promptTimeoutExecutor;
@@ -116,7 +114,6 @@ public final class SessionManager {
         this.config = config;
         this.tickSampler = new TickSampler(config);
         this.serializer = new SessionSerializer();
-        this.pastesDevUploader = new PastesDevUploader();
         this.discordWebhookNotifier = new DiscordWebhookNotifier();
         this.uploadExecutor = Executors.newSingleThreadExecutor(new DaemonThreadFactory("Herbert-Upload"));
         this.promptTimeoutExecutor = Executors.newSingleThreadScheduledExecutor(new DaemonThreadFactory("Herbert-PromptTimeout"));
@@ -619,18 +616,21 @@ public final class SessionManager {
      * Executes the upload flow for a completed session. Always runs on the upload executor's
      * background thread, never on the client thread.
      *
-     * <p>Dispatches to one of two entirely separate paths depending on the file's size:</p>
+     * <p>Every session is uploaded directly to the configured Discord webhook as a file
+     * attachment -- this mod does not use any third-party paste-hosting service. Dispatches to
+     * one of two paths depending on the file's size:</p>
      * <ul>
-     *   <li>At or under {@code config.getTargetChunkSizeBytes()}: the existing single-file
-     *       pastes.dev + Discord-webhook-notify flow, completely unchanged from before chunked
-     *       uploads existed.</li>
+     *   <li>At or under {@code config.getTargetChunkSizeBytes()}: uploads the whole file as a
+     *       single webhook message (see {@link DiscordWebhookNotifier#uploadSessionFile}).</li>
      *   <li>Over that size: {@link #performChunkedUploadFlow(File, String, String, long, long)}
-     *       splits the file and uploads each chunk directly to Discord as a file attachment. A
-     *       session is <b>never</b> silently dropped for being too large.</li>
+     *       splits the file and uploads each chunk as its own webhook message. A session is
+     *       <b>never</b> silently dropped for being too large.</li>
      * </ul>
      *
-     * <p>On any single-file-path failure, the local JSONL file is left intact on disk; the
-     * failure is logged and reported to the player via chat (unchanged behavior).</p>
+     * <p>On any failure, the local JSONL file is left intact on disk; the failure is logged and
+     * reported to the player via chat -- and, since there is no longer a separate "paste
+     * succeeded" step to falsely report as complete, a failed Discord upload is now always
+     * reported as a failure rather than silently swallowed.</p>
      *
      * @param file the completed session JSONL file
      * @param sessionId the session's UUID (captured by the caller before this ran, rather than
@@ -655,21 +655,16 @@ public final class SessionManager {
             return;
         }
 
-        UploadResult result = uploadToPastesDev(file);
-        if (!result.isSuccess()) {
-            scheduleChat("Upload failed: " + result.getErrorMessage() + " (log kept at " + file.getAbsolutePath() + ")");
+        try {
+            discordWebhookNotifier.uploadSessionFile(webhookUrl, file, sessionId, durationSeconds, tickCount,
+                    HerbertConstants.SCHEMA_VERSION, HerbertConstants.MOD_VERSION);
+        } catch (Exception uploadError) {
+            FMLLog.log(HerbertConstants.MOD_NAME, Level.ERROR, uploadError, "Session upload failed for %s", file.getAbsolutePath());
+            scheduleChat("Upload failed: " + uploadError.getMessage() + " (log kept at " + file.getAbsolutePath() + ")");
             return;
         }
 
-        try {
-            discordWebhookNotifier.notify(webhookUrl, result.getPasteUrl(), durationSeconds, tickCount,
-                    HerbertConstants.SCHEMA_VERSION, HerbertConstants.MOD_VERSION);
-        } catch (Exception discordError) {
-            FMLLog.log(HerbertConstants.MOD_NAME, Level.ERROR, discordError,
-                    "Discord webhook notification failed after a successful pastes.dev upload (paste: %s)", result.getPasteUrl());
-        }
-
-        scheduleChat("Upload complete: " + result.getPasteUrl());
+        scheduleChat("Herbert: Upload complete.");
     }
 
     /**
@@ -756,23 +751,6 @@ public final class SessionManager {
             Thread.sleep(millis);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-        }
-    }
-
-    /**
-     * Reads the completed session file and uploads it to pastes.dev, wrapping any failure
-     * (file I/O, network error, non-2xx response, malformed response) into a failed
-     * {@link UploadResult} rather than throwing, so the caller can uniformly report success or
-     * failure to the player. The local file is never touched/deleted here regardless of outcome.
-     */
-    private UploadResult uploadToPastesDev(File file) {
-        try {
-            String content = new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8);
-            String pasteUrl = pastesDevUploader.upload(content);
-            return UploadResult.success(pasteUrl);
-        } catch (Exception e) {
-            FMLLog.log(HerbertConstants.MOD_NAME, Level.ERROR, e, "Session upload failed for %s", file.getAbsolutePath());
-            return UploadResult.failure(String.valueOf(e.getMessage()));
         }
     }
 

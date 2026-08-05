@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Shared pytest fixtures.
 
 None of these tests depend on a real server/bridge process or a real `/nn` checkpoint -- every

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Model forward-pass shape tests (CPU only, dummy batches)."""
 
 from __future__ import annotations
@@ -44,9 +45,13 @@ def _make_single_tick_batch(batch_size: int) -> dict[str, torch.Tensor]:
         "continuous": torch.randn(batch_size, CONTINUOUS_FEATURE_DIM),
         "block_grid_cells": torch.randint(0, 5, (batch_size, num_cells)),
         "hotbar_slot_index": torch.randint(0, 9, (batch_size,)),
-        "hotbar_item_type": torch.randint(0, _DATA_META.item_type_vocab_size, (batch_size,)),
+        "hotbar_item_type": torch.randint(
+            0, _DATA_META.item_type_vocab_size, (batch_size,)
+        ),
         "opponent_held_item_category": torch.randint(0, 5, (batch_size,)),
-        "match_kit_type": torch.randint(0, _DATA_META.kit_type_vocab_size, (batch_size,)),
+        "match_kit_type": torch.randint(
+            0, _DATA_META.kit_type_vocab_size, (batch_size,)
+        ),
     }
 
 
@@ -72,7 +77,10 @@ def test_mlp_policy_forward_shapes() -> None:
     output = model(batch)
     assert output["mouse"].shape == (5, 2)
     assert output["discrete"].shape == (5, NUM_DISCRETE_ACTIONS)
-    assert output["block_placement"].shape == (5, _DATA_META.place_block_type_vocab_size)
+    assert output["block_placement"].shape == (
+        5,
+        _DATA_META.place_block_type_vocab_size,
+    )
 
 
 def test_gru_policy_forward_shapes() -> None:
@@ -81,16 +89,25 @@ def test_gru_policy_forward_shapes() -> None:
     output = model(batch)
     assert output["mouse"].shape == (5, 2)
     assert output["discrete"].shape == (5, NUM_DISCRETE_ACTIONS)
-    assert output["block_placement"].shape == (5, _DATA_META.place_block_type_vocab_size)
+    assert output["block_placement"].shape == (
+        5,
+        _DATA_META.place_block_type_vocab_size,
+    )
 
 
 def test_mlp_policy_backward_pass_produces_gradients() -> None:
     model = build_model(_MLP_CFG, _DATA_META)
     batch = _make_single_tick_batch(batch_size=4)
     output = model(batch)
-    loss = output["mouse"].sum() + output["discrete"].sum() + output["block_placement"].sum()
+    loss = (
+        output["mouse"].sum()
+        + output["discrete"].sum()
+        + output["block_placement"].sum()
+    )
     loss.backward()
-    grad_norms = [p.grad.norm().item() for p in model.parameters() if p.grad is not None]
+    grad_norms = [
+        p.grad.norm().item() for p in model.parameters() if p.grad is not None
+    ]
     assert len(grad_norms) > 0
     assert any(g > 0 for g in grad_norms)
 
@@ -99,8 +116,14 @@ def test_gru_policy_backward_pass_produces_gradients() -> None:
     model = build_model(_GRU_CFG, _DATA_META)
     batch = _make_window_batch(batch_size=4, window_length=6)
     output = model(batch)
-    loss = output["mouse"].sum() + output["discrete"].sum() + output["block_placement"].sum()
+    loss = (
+        output["mouse"].sum()
+        + output["discrete"].sum()
+        + output["block_placement"].sum()
+    )
     loss.backward()
-    grad_norms = [p.grad.norm().item() for p in model.parameters() if p.grad is not None]
+    grad_norms = [
+        p.grad.norm().item() for p in model.parameters() if p.grad is not None
+    ]
     assert len(grad_norms) > 0
     assert any(g > 0 for g in grad_norms)

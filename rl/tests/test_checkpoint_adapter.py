@@ -1,7 +1,10 @@
-"""Tests for `herbert_rl.policy.checkpoint_adapter` -- loading a `/nn`-shaped checkpoint without
-importing `herbert_nn` (a synthetic checkpoint dict is built here in exactly the shape
-`herbert_nn.training.checkpoint.save_checkpoint` would produce, per that module's documented
-format: `model_state_dict`/`model_cfg`/`data_meta`)."""
+# SPDX-License-Identifier: MIT
+"""Tests for `herbert_rl.policy.checkpoint_adapter` -- loading a `/nn`-shaped checkpoint.
+
+Without importing `herbert_nn`: a synthetic checkpoint dict is built here in exactly the
+shape `herbert_nn.training.checkpoint.save_checkpoint` would produce, per that module's
+documented format (`model_state_dict`/`model_cfg`/`data_meta`).
+"""
 
 from __future__ import annotations
 
@@ -23,9 +26,12 @@ _MLP_MODEL_CFG = {
 
 
 def _write_synthetic_nn_checkpoint(path, model_cfg, data_meta: RLDataMeta):
-    """Build a checkpoint matching /nn's on-disk format, including pretrained
-    mouse_head/discrete_head/block_placement_head weights (which build_backbone() intentionally
-    does not produce, since the RL backbone omits those heads -- see backbone.py)."""
+    """Build a checkpoint matching /nn's on-disk format.
+
+    Includes pretrained mouse_head/discrete_head/block_placement_head weights (which
+    build_backbone() intentionally does not produce, since the RL backbone omits those
+    heads -- see backbone.py).
+    """
     backbone = build_backbone(model_cfg, data_meta)
     state_dict = dict(backbone.state_dict())
     trunk_dim = backbone.output_dim
@@ -68,8 +74,12 @@ def test_load_nn_checkpoint_reconstructs_backbone_with_matching_weights(tmp_path
     assert loaded.model_family == "mlp"
     assert loaded.checkpoint_path == str(checkpoint_path)
     # Encoder weights should have loaded exactly (not left at a fresh random init).
-    loaded_encoder_weight = loaded.backbone.state_dict()["encoder.block_cell_embedding.weight"]
-    assert torch.equal(loaded_encoder_weight, state_dict["encoder.block_cell_embedding.weight"])
+    loaded_encoder_weight = loaded.backbone.state_dict()[
+        "encoder.block_cell_embedding.weight"
+    ]
+    assert torch.equal(
+        loaded_encoder_weight, state_dict["encoder.block_cell_embedding.weight"]
+    )
 
 
 def test_load_nn_checkpoint_extracts_pretrained_head_weights(tmp_path):
@@ -83,10 +93,15 @@ def test_load_nn_checkpoint_extracts_pretrained_head_weights(tmp_path):
 
     loaded = load_nn_checkpoint(checkpoint_path)
 
-    assert torch.equal(loaded.pretrained_heads.mouse_weight, state_dict["mouse_head.linear.weight"])
-    assert torch.equal(loaded.pretrained_heads.mouse_bias, state_dict["mouse_head.linear.bias"])
     assert torch.equal(
-        loaded.pretrained_heads.discrete_weight, state_dict["discrete_head.linear.weight"]
+        loaded.pretrained_heads.mouse_weight, state_dict["mouse_head.linear.weight"]
+    )
+    assert torch.equal(
+        loaded.pretrained_heads.mouse_bias, state_dict["mouse_head.linear.bias"]
+    )
+    assert torch.equal(
+        loaded.pretrained_heads.discrete_weight,
+        state_dict["discrete_head.linear.weight"],
     )
     assert torch.equal(
         loaded.pretrained_heads.discrete_bias, state_dict["discrete_head.linear.bias"]

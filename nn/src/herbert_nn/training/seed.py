@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Deterministic seeding across Python, NumPy, and PyTorch (CPU + CUDA)."""
 
 from __future__ import annotations
@@ -31,5 +32,7 @@ def set_seed(seed: int, deterministic_cudnn: bool = True) -> None:
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
     logger.info(
-        "Seeded random/numpy/torch with seed=%d (deterministic_cudnn=%s)", seed, deterministic_cudnn
+        "Seeded random/numpy/torch with seed=%d (deterministic_cudnn=%s)",
+        seed,
+        deterministic_cudnn,
     )

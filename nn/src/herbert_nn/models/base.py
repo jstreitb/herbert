@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Common types and the model factory shared across MLP/GRU policies.
 
 Both :class:`herbert_nn.models.mlp.MLPPolicy` and
@@ -49,6 +50,7 @@ class DataMeta:
 
     @property
     def num_block_cells(self) -> int:
+        """Total flattened block-grid cell count (``width * height * depth``)."""
         w, h, d = self.block_grid_shape
         return w * h * d
 

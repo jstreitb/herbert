@@ -22,21 +22,31 @@ BridgeLogger mod installed.
    scoreboard; if detection misfires for your client/language settings, use the manual
    `/herbert start`, `/herbert stop`, and `/herbert status` commands instead, and please open an
    issue describing what the scoreboard looked like so the heuristic can be improved.
-4. At the end of a session the mod uploads your log to pastes.dev and posts the link to the
-   intake channel automatically — there is no separate submission step. The intake bot will
-   react with ✅ once it confirms the upload is a valid Herbert session.
+4. At the end of a session the mod uploads your log directly to the intake channel's webhook as
+   a file attachment (splitting it into a few messages first if it's too large for one) — there
+   is no separate submission step and no third-party paste site involved. The intake bot
+   recognizes a submission directly by its `.jsonl` file attachment, so a successful upload gets
+   the bot's ✅ reaction automatically; see "Submitting data" below if you need to submit a
+   session that wasn't uploaded automatically (e.g. one recorded in `dryRun` mode).
 
-Your username is never uploaded in the clear — every session header stores a SHA-256 hash of
-it instead (see the privacy note in [`mod/README.md`](mod/README.md)).
+Your username is never uploaded in the clear by default — every session header stores a SHA-256
+hash of it, and the mod only adds your raw username too if you explicitly opt in when it asks at
+the end of each session (see the privacy note in [`mod/README.md`](mod/README.md)).
+
+Before opening a PR against `/mod`, run:
+
+```bash
+cd mod
+./gradlew build   # compiles and runs the unit test suite (src/test/java)
+```
 
 ## 2. Submitting data
 
-This is automatic. As described above, once the mod is configured with a webhook URL, every
-recorded session is uploaded and posted to the intake channel without any manual step. If you
-have existing session `.jsonl` files (e.g. recorded in `dryRun` mode) that you'd like to
-contribute after the fact, you can paste them to pastes.dev yourself and post the resulting URL
-in the intake channel — the bot validates content, not source, so manually-submitted sessions
-that pass the schema check are treated the same as automatic ones.
+Automatic uploads land in the intake channel and get the bot's ✅ validation reaction as
+described above. To submit a session that wasn't uploaded automatically (e.g. one recorded in
+`dryRun` mode, or recovered after a failed upload), post it as a `.jsonl` file attachment in the
+intake channel yourself — the bot validates any message carrying one, regardless of who or what
+posted it.
 
 ## 3. Contributing to the `/nn` pipeline
 
@@ -85,9 +95,11 @@ code. PRs are expected to meet the same bar as the rest of the codebase:
   `/mod`) must degrade gracefully (null/unknown fields) rather than throwing — a parsing bug
   should never crash a contributor's game client.
 - **Strict separation of concerns.** `/mod`, `/nn`, and `/bot` must remain independently
-  buildable with no shared code. The JSONL schema and the pastes.dev URL format are the only
-  contracts between them; changes to either must be reflected in `mod/README.md` (the schema is
-  documented there field-by-field) and coordinated across the components that depend on it.
+  buildable with no shared code. The JSONL schema and the Discord webhook file-attachment upload
+  convention are the only contracts between them; changes to either must be reflected in
+  `mod/README.md` (the schema is documented there field-by-field, and the upload contract in its
+  "Contract with the rest of the Herbert project" section) and coordinated across the components
+  that depend on it.
 - **Nothing that automates gameplay.** This is a hard line for `/mod`: it is a passive logger.
   PRs that add input injection, packet manipulation, or any form of gameplay automation will be
   rejected regardless of other merits.

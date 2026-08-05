@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 package dev.herbert.bridgelogger.serialize;
 
 import java.io.BufferedWriter;
@@ -212,16 +213,14 @@ public final class SessionChunker {
     }
 
     private void writeChunkFile(File chunkFile, String headerLine, List<String> tickLines) throws IOException {
-        BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(chunkFile), StandardCharsets.UTF_8));
-        try {
+        try (BufferedWriter writer =
+                new BufferedWriter(new OutputStreamWriter(new FileOutputStream(chunkFile), StandardCharsets.UTF_8))) {
             writer.write(headerLine);
             writer.write("\n");
             for (String line : tickLines) {
                 writer.write(line);
                 writer.write("\n");
             }
-        } finally {
-            writer.close();
         }
     }
 }

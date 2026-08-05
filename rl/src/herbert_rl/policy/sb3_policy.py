@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """`HerbertRLPolicy`: a custom `stable_baselines3` `ActorCriticPolicy` built on the `/nn` backbone.
 
 Architecture, mapped onto SB3's `ActorCriticPolicy` building blocks:
@@ -58,17 +59,29 @@ class HerbertBackboneExtractor(BaseFeaturesExtractor):
     extractor casts them back to `.long()` right before the embedding lookups.
     """
 
-    def __init__(self, observation_space: spaces.Dict, backbone: nn.Module, trunk_dim: int) -> None:
+    def __init__(
+        self, observation_space: spaces.Dict, backbone: nn.Module, trunk_dim: int
+    ) -> None:
+        """Wrap ``backbone`` as an SB3 features extractor.
+
+        Args:
+            observation_space: The env's Dict observation space (see `env/spaces.py`).
+            backbone: The `/nn`-derived `RLMLPBackbone`/`RLGRUBackbone` to wrap.
+            trunk_dim: The backbone's output dimensionality (``backbone.output_dim``).
+        """
         super().__init__(observation_space, features_dim=trunk_dim)
         self.backbone = backbone
 
     def forward(self, observations: dict[str, torch.Tensor]) -> torch.Tensor:
+        """Cast categorical observation fields back to integer indices and run the backbone."""
         batch = {
             "continuous": observations["continuous"],
             "block_grid_cells": observations["block_grid_cells"].long(),
             "hotbar_slot_index": observations["hotbar_slot_index"].long(),
             "hotbar_item_type": observations["hotbar_item_type"].long(),
-            "opponent_held_item_category": observations["opponent_held_item_category"].long(),
+            "opponent_held_item_category": observations[
+                "opponent_held_item_category"
+            ].long(),
             "match_kit_type": observations["match_kit_type"].long(),
         }
         return self.backbone(batch)
@@ -91,10 +104,23 @@ class HerbertRLPolicy(ActorCriticPolicy):
         loaded_backbone: LoadedBackbone,
         **kwargs: Any,
     ) -> None:
+        """Build the SB3 policy on top of ``loaded_backbone``.
+
+        Args:
+            observation_space: The env's Dict observation space.
+            action_space: The env's Box action space (see `env/action_wrapper.py`).
+            lr_schedule: SB3 learning-rate schedule, passed through to `ActorCriticPolicy`.
+            loaded_backbone: The `/nn`-pretrained (or fresh, for smoke-testing) backbone and
+                pretrained head weights to splice into `action_net` (see :meth:`_build`).
+            **kwargs: Passed through to `ActorCriticPolicy.__init__`, with ``net_arch``,
+                ``normalize_images``, and ``ortho_init`` defaulted/forced as documented above.
+        """
         self._loaded_backbone = loaded_backbone
         kwargs.setdefault("net_arch", [])
         kwargs.setdefault("normalize_images", False)
-        kwargs["ortho_init"] = False  # see module docstring -- must not clobber pretrained weights
+        kwargs["ortho_init"] = (
+            False  # see module docstring -- must not clobber pretrained weights
+        )
         super().__init__(
             observation_space,
             action_space,
@@ -117,8 +143,12 @@ class HerbertRLPolicy(ActorCriticPolicy):
         assert isinstance(self.action_net, nn.Linear)
         with torch.no_grad():
             if heads.discrete_weight is not None and heads.discrete_bias is not None:
-                self.action_net.weight[DISCRETE_ACTION_NET_ROWS].copy_(heads.discrete_weight)
-                self.action_net.bias[DISCRETE_ACTION_NET_ROWS].copy_(heads.discrete_bias)
+                self.action_net.weight[DISCRETE_ACTION_NET_ROWS].copy_(
+                    heads.discrete_weight
+                )
+                self.action_net.bias[DISCRETE_ACTION_NET_ROWS].copy_(
+                    heads.discrete_bias
+                )
                 logger.info(
                     "Spliced pretrained DiscreteHead weights into action_net rows %s.",
                     DISCRETE_ACTION_NET_ROWS,

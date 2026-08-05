@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 'use strict';
 
 /**
@@ -61,11 +62,15 @@ class ReconnectingBot extends EventEmitter {
   }
 
   _handleDisconnect(reason) {
-    if (this.stopped) return;
-    if (this.bot) {
-      this.bot.removeAllListeners();
-      this.bot = null;
-    }
+    // A single real disconnect commonly fires more than one of the 'end'/'error'/'kicked'
+    // listeners registered in _connect() (e.g. a socket error followed by 'end'). Once the
+    // first call has torn down `this.bot`, treat any further call for the same connection as
+    // a redundant echo of the same event and ignore it -- otherwise this would re-emit
+    // 'disconnected' and schedule a second, overlapping reconnect attempt for one real
+    // disconnect, potentially opening two concurrent connections for the same bot account.
+    if (this.stopped || !this.bot) return;
+    this.bot.removeAllListeners();
+    this.bot = null;
     this.emit('disconnected', reason);
     if (this.stopped) return;
     this.attempt += 1;

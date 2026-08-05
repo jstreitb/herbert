@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Shared structured-logging setup for herbert_rl CLI entry points (copy of `herbert_nn`'s)."""
 
 from __future__ import annotations

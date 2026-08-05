@@ -1,0 +1,95 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test-java:
+    name: Test Java (/mod)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: '8'
+          distribution: 'temurin'
+      - name: Build with Gradle
+        working-directory: ./mod
+        run: ./gradlew build
+
+  test-python-nn:
+    name: Test Python /nn
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        working-directory: ./nn
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      - name: Lint with ruff
+        working-directory: ./nn
+        run: ruff check .
+      - name: Format check with black
+        working-directory: ./nn
+        run: black --check .
+      - name: Type check with mypy
+        working-directory: ./nn
+        run: mypy src/
+      - name: Run pytest
+        working-directory: ./nn
+        run: pytest
+
+  test-python-rl:
+    name: Test Python /rl
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        working-directory: ./rl
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      - name: Lint with ruff
+        working-directory: ./rl
+        run: ruff check .
+      - name: Format check with black
+        working-directory: ./rl
+        run: black --check .
+      - name: Type check with mypy
+        working-directory: ./rl
+        run: mypy src/
+      - name: Run pytest
+        working-directory: ./rl
+        run: pytest
+
+  lint-bridge:
+    name: Lint and test /rl/bridge (Node.js)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      - name: Install dependencies
+        working-directory: ./rl/bridge
+        run: npm ci
+      - name: Run linter
+        working-directory: ./rl/bridge
+        run: npm run lint
+      - name: Run tests
+        working-directory: ./rl/bridge
+        run: npm test

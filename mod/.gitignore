@@ -3,11 +3,11 @@
 build/
 run/
 out/
+logs/
 
-# ForgeGradle wrapper jar (regenerate locally with `gradle wrapper --gradle-version 2.14`)
-gradle/wrapper/gradle-wrapper.jar
-gradlew
-gradlew.bat
+# Gradle wrapper (gradlew, gradlew.bat, gradle-wrapper.jar) is intentionally committed, not
+# ignored: it lets contributors and CI run ./gradlew build without a pre-installed Gradle. See
+# mod/README.md's "Building" section.
 
 # IDE
 .idea/

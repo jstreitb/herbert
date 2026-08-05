@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 'use strict';
 
 /**
@@ -67,17 +68,17 @@ function listenForCommands({ onAction, onReset, onClose }) {
       return;
     }
     switch (command.cmd) {
-      case 'action':
-        onAction(command);
-        break;
-      case 'reset':
-        onReset();
-        break;
-      case 'close':
-        onClose();
-        break;
-      default:
-        log('warn', `Discarding stdin line with unknown cmd: ${JSON.stringify(command)}`);
+    case 'action':
+      onAction(command);
+      break;
+    case 'reset':
+      onReset();
+      break;
+    case 'close':
+      onClose();
+      break;
+    default:
+      log('warn', `Discarding stdin line with unknown cmd: ${JSON.stringify(command)}`);
     }
   });
   rl.on('close', () => {

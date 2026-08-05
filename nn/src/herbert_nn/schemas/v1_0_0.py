@@ -1,4 +1,5 @@
-"""BridgeLogger JSONL schema, version ``"1.0.0"``.
+# SPDX-License-Identifier: MIT
+r"""BridgeLogger JSONL schema, version ``"1.0.0"``.
 
 This module is the single source of truth for the on-disk shape of schema
 version ``1.0.0`` session logs produced by the ``/mod`` component. It must
@@ -9,9 +10,9 @@ forever) -- schema evolution happens by adding a *new* versioned module (see
 
 A session ``.jsonl`` file has the shape::
 
-    <SessionHeaderV1 as JSON>\\n
-    <TickRecordV1 as JSON>\\n
-    <TickRecordV1 as JSON>\\n
+    <SessionHeaderV1 as JSON>\n
+    <TickRecordV1 as JSON>\n
+    <TickRecordV1 as JSON>\n
     ...
 
 All models use Pydantic v2 with ``extra="forbid"`` so that unexpected fields
@@ -71,8 +72,12 @@ class SessionHeaderV1(_StrictModel):
     schema_version: str = Field(
         ..., description="Semver string identifying the record schema used below."
     )
-    herbert_mod_version: str = Field(..., description="Version string of the /mod build.")
-    session_id: str = Field(..., description="UUID4 string identifying this recording session.")
+    herbert_mod_version: str = Field(
+        ..., description="Version string of the /mod build."
+    )
+    session_id: str = Field(
+        ..., description="UUID4 string identifying this recording session."
+    )
     recording_start_timestamp: str = Field(
         ..., description="ISO-8601 timestamp of when recording started."
     )

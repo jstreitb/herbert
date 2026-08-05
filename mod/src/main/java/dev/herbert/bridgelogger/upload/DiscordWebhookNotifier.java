@@ -1,6 +1,8 @@
+// SPDX-License-Identifier: MIT
 package dev.herbert.bridgelogger.upload;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -18,76 +20,51 @@ import dev.herbert.bridgelogger.serialize.SessionChunker;
 import dev.herbert.bridgelogger.util.HerbertConstants;
 
 /**
- * Minimal HTTP client that posts a standard Discord webhook message announcing a completed
- * BridgeLogger session upload.
+ * Minimal HTTP client that uploads a completed BridgeLogger session directly to a Discord
+ * webhook as a file attachment, with an embed describing the session.
  *
- * <p>Uses only {@link HttpURLConnection}, already part of the JRE. Performs blocking network
- * I/O and must therefore only ever be invoked from a background thread/executor.</p>
+ * <p>This mod does <b>not</b> use any third-party paste-hosting service -- every session (or, for
+ * an oversized session, every split chunk of it -- see {@link dev.herbert.bridgelogger.serialize.SessionChunker})
+ * is attached directly to its own Discord webhook message via a {@code multipart/form-data} POST
+ * (Discord's {@code payload_json} + {@code files[0]} convention for a webhook message carrying an
+ * attachment). Uses only {@link HttpURLConnection}, already part of the JRE. Performs blocking
+ * network I/O and must therefore only ever be invoked from a background thread/executor.</p>
  */
 public final class DiscordWebhookNotifier {
 
     /**
-     * Posts a message to the given Discord webhook announcing a completed session upload.
+     * Uploads a whole (non-chunked) completed session JSONL file directly to the given Discord
+     * webhook as a file attachment, with an embed showing the session ID, duration, tick count,
+     * file size, and schema/mod version.
      *
      * @param webhookUrl the configured Discord webhook URL; must not be {@code null} or empty
-     * @param pasteUrl the full {@code https://pastes.dev/{key}} URL of the uploaded session log; must not be {@code null}
+     * @param file the completed session JSONL file; must not be {@code null}
+     * @param sessionId the session's UUID
      * @param durationSeconds wall-clock duration of the recorded session, in seconds
      * @param tickCount number of ticks recorded in the session
      * @param schemaVersion the JSONL schema version the session was written with
      * @param modVersion the BridgeLogger mod version that recorded the session
-     * @throws IOException if the network request fails or Discord responds with a non-2xx status
+     * @throws IOException if the file cannot be read, the network request fails, or Discord
+     *         responds with a non-2xx status
      */
-    public void notify(String webhookUrl, String pasteUrl, long durationSeconds, long tickCount, String schemaVersion,
-            String modVersion) throws IOException {
+    public void uploadSessionFile(String webhookUrl, File file, String sessionId, long durationSeconds,
+            long tickCount, String schemaVersion, String modVersion) throws IOException {
         if (webhookUrl == null || webhookUrl.isEmpty()) {
             throw new IllegalArgumentException("webhookUrl must not be null or empty");
         }
-        if (pasteUrl == null) {
-            throw new IllegalArgumentException("pasteUrl must not be null");
+        if (file == null) {
+            throw new IllegalArgumentException("file must not be null");
         }
 
-        String label = String.format("Herbert session upload — %ds / %d ticks", durationSeconds, tickCount);
-        String payload = buildPayload(label, pasteUrl, durationSeconds, tickCount, schemaVersion, modVersion);
-
-        HttpURLConnection connection = null;
-        try {
-            URL url = new URL(webhookUrl);
-            connection = (HttpURLConnection) url.openConnection();
-            connection.setRequestMethod("POST");
-            connection.setDoOutput(true);
-            connection.setConnectTimeout(HerbertConstants.HTTP_CONNECT_TIMEOUT_MS);
-            connection.setReadTimeout(HerbertConstants.HTTP_READ_TIMEOUT_MS);
-            connection.setRequestProperty("Content-Type", "application/json; charset=utf-8");
-            connection.setRequestProperty("User-Agent", HerbertConstants.MOD_NAME + "/" + HerbertConstants.MOD_VERSION);
-
-            byte[] body = payload.getBytes(StandardCharsets.UTF_8);
-            connection.setFixedLengthStreamingMode(body.length);
-            try (OutputStream out = connection.getOutputStream()) {
-                out.write(body);
-            }
-
-            int status = connection.getResponseCode();
-            if (status < 200 || status >= 300) {
-                String errorBody = readErrorBody(connection);
-                throw new IOException("Discord webhook responded with HTTP " + status + ": " + errorBody);
-            }
-        } finally {
-            if (connection != null) {
-                connection.disconnect();
-            }
-        }
+        byte[] fileBytes = Files.readAllBytes(file.toPath());
+        String payloadJson = buildSessionFilePayload(file, sessionId, durationSeconds, tickCount, schemaVersion, modVersion);
+        postMultipart(webhookUrl, payloadJson, file.getName(), fileBytes);
     }
 
     /**
      * Uploads one split session chunk (see {@link dev.herbert.bridgelogger.serialize.SessionChunker})
      * directly to the given Discord webhook as a file attachment, with its own embed describing
      * which part this is, the tick range it covers, its file size, and the usual session metadata.
-     *
-     * <p>Unlike {@link #notify}, which posts a plain JSON message linking to an already-uploaded
-     * pastes.dev paste, this performs a {@code multipart/form-data} request carrying the chunk
-     * file's bytes directly -- chunked sessions are never uploaded to pastes.dev at all (see
-     * {@code mod/README.md}'s "Chunked uploads" section for why, and for the resulting known gap
-     * with {@code /bot}'s current pastes.dev-URL-scanning intake validator).</p>
      *
      * @param webhookUrl the configured Discord webhook URL; must not be {@code null} or empty
      * @param chunk the chunk to upload; must not be {@code null}
@@ -110,8 +87,17 @@ public final class DiscordWebhookNotifier {
 
         byte[] fileBytes = Files.readAllBytes(chunk.getFile().toPath());
         String payloadJson = buildChunkPayload(chunk, sessionId, durationSeconds, tickCount, schemaVersion, modVersion);
-        String boundary = "----HerbertChunk" + System.nanoTime();
-        byte[] body = buildMultipartBody(boundary, payloadJson, chunk.getFile().getName(), fileBytes);
+        postMultipart(webhookUrl, payloadJson, chunk.getFile().getName(), fileBytes);
+    }
+
+    /**
+     * Posts a {@code multipart/form-data} webhook message carrying {@code payloadJson} (the
+     * message/embed JSON) plus {@code fileBytes} as a file attachment named {@code fileName}.
+     * Shared by {@link #uploadSessionFile} and {@link #uploadChunk}.
+     */
+    private void postMultipart(String webhookUrl, String payloadJson, String fileName, byte[] fileBytes) throws IOException {
+        String boundary = "----HerbertUpload" + System.nanoTime();
+        byte[] body = buildMultipartBody(boundary, payloadJson, fileName, fileBytes);
 
         HttpURLConnection connection = null;
         try {
@@ -139,6 +125,31 @@ public final class DiscordWebhookNotifier {
                 connection.disconnect();
             }
         }
+    }
+
+    private String buildSessionFilePayload(File file, String sessionId, long durationSeconds, long tickCount,
+            String schemaVersion, String modVersion) {
+        JsonObject embed = new JsonObject();
+        embed.addProperty("title", "Herbert session upload");
+        embed.addProperty("color", HerbertConstants.DISCORD_EMBED_COLOR);
+
+        JsonArray fields = new JsonArray();
+        fields.add(field("Session ID", sessionId, false));
+        fields.add(field("Duration", durationSeconds + "s", true));
+        fields.add(field("Ticks", String.valueOf(tickCount), true));
+        fields.add(field("File size", formatBytes(file.length()), true));
+        fields.add(field("Schema version", schemaVersion, true));
+        fields.add(field("Mod version", modVersion, true));
+        embed.add("fields", fields);
+
+        JsonArray embeds = new JsonArray();
+        embeds.add(embed);
+
+        JsonObject payload = new JsonObject();
+        payload.addProperty("content",
+                String.format(Locale.ROOT, "Herbert session upload — %ds / %d ticks (session %s)", durationSeconds, tickCount, sessionId));
+        payload.add("embeds", embeds);
+        return payload.toString();
     }
 
     private String buildChunkPayload(SessionChunk chunk, String sessionId, long durationSeconds, long tickCount,
@@ -184,7 +195,7 @@ public final class DiscordWebhookNotifier {
     /**
      * Builds a {@code multipart/form-data} body with two parts: a {@code payload_json} field
      * (Discord's convention for the message JSON when a file is attached) and a {@code files[0]}
-     * field carrying the raw chunk file bytes.
+     * field carrying the raw file bytes.
      */
     private byte[] buildMultipartBody(String boundary, String payloadJson, String fileName, byte[] fileBytes) throws IOException {
         String lineBreak = "\r\n";
@@ -205,35 +216,6 @@ public final class DiscordWebhookNotifier {
 
         buffer.write(("--" + boundary + "--" + lineBreak).getBytes(StandardCharsets.UTF_8));
         return buffer.toByteArray();
-    }
-
-    private String buildPayload(String label, String pasteUrl, long durationSeconds, long tickCount,
-            String schemaVersion, String modVersion) {
-        JsonObject embed = new JsonObject();
-        embed.addProperty("title", "Herbert session upload");
-        embed.addProperty("url", pasteUrl);
-        embed.addProperty("color", HerbertConstants.DISCORD_EMBED_COLOR);
-        embed.addProperty("description", pasteUrl);
-
-        JsonArray fields = new JsonArray();
-        fields.add(field("Duration", durationSeconds + "s", true));
-        fields.add(field("Ticks", String.valueOf(tickCount), true));
-        fields.add(field("Schema version", schemaVersion, true));
-        fields.add(field("Mod version", modVersion, true));
-        embed.add("fields", fields);
-
-        JsonArray embeds = new JsonArray();
-        embeds.add(embed);
-
-        // The plain-text `content` field (not the embed) is what downstream consumers such as
-        // the intake bot scan for a pastes.dev URL via simple text matching — Discord embed
-        // fields are a separate structure that a plain-content regex scan never sees. The URL
-        // therefore must appear in `content` itself, not only inside the embed below (which
-        // exists purely for a nicer human-readable presentation in Discord).
-        JsonObject payload = new JsonObject();
-        payload.addProperty("content", label + "\n" + pasteUrl);
-        payload.add("embeds", embeds);
-        return payload.toString();
     }
 
     private JsonObject field(String name, String value, boolean inline) {

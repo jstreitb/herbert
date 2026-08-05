@@ -1,4 +1,5 @@
-"""``python -m herbert_nn.inspect`` -- qualitative replay inspector.
+# SPDX-License-Identifier: MIT
+r"""``python -m herbert_nn.inspect`` -- qualitative replay inspector.
 
 Given a single held-out session ``.jsonl`` file and a trained checkpoint,
 runs the model tick-by-tick over that session and writes:
@@ -12,7 +13,7 @@ whether the policy's aim/timing/placement decisions look at all like the
 recorded player's.
 
 Example:
-    python -m herbert_nn.inspect --session data/raw/session_0007.jsonl \\
+    python -m herbert_nn.inspect --session data/raw/session_0007.jsonl \
         --checkpoint runs/default/2026-08-04_12-00-00/best.pt --output-dir inspect_out
 """
 
@@ -22,7 +23,7 @@ import argparse
 import csv
 import logging
 from pathlib import Path
-from typing import cast
+from typing import TypedDict, cast
 
 import matplotlib
 
@@ -33,7 +34,7 @@ import torch
 
 from herbert_nn.constants import DISCRETE_ACTION_NAMES
 from herbert_nn.data.cache import encode_session_for_inference, load_cache_bundle
-from herbert_nn.data.features import encode_session_raw
+from herbert_nn.data.features import SessionArrays, encode_session_raw
 from herbert_nn.data.vocab import CategoricalVocab
 from herbert_nn.logging_utils import configure_logging
 from herbert_nn.schemas.registry import load_session
@@ -53,6 +54,19 @@ _FEATURE_KEYS = (
 )
 
 
+class SessionPredictions(TypedDict):
+    """Per-tick predictions for one session, as produced by :func:`_predict_mlp`/:func:`_predict_gru`.
+
+    ``mouse``/``discrete_prob`` are always fully populated (NaN-filled for GRU ticks with
+    no valid preceding window). ``block_logits`` is ``None`` only when a GRU session has no
+    ticks long enough to form a single window (see :func:`_predict_gru`).
+    """
+
+    mouse: np.ndarray
+    discrete_prob: np.ndarray
+    block_logits: np.ndarray | None
+
+
 def build_arg_parser() -> argparse.ArgumentParser:
     """Build the argparse parser for this CLI."""
     parser = argparse.ArgumentParser(
@@ -63,9 +77,13 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--session", required=True, help="Path to a single raw session .jsonl file."
     )
-    parser.add_argument("--checkpoint", required=True, help="Path to a .pt checkpoint file.")
     parser.add_argument(
-        "--output-dir", default="inspect_out", help="Directory to write the CSV and figure into."
+        "--checkpoint", required=True, help="Path to a .pt checkpoint file."
+    )
+    parser.add_argument(
+        "--output-dir",
+        default="inspect_out",
+        help="Directory to write the CSV and figure into.",
     )
     parser.add_argument(
         "--device", default="auto", help='Device to run on: "auto", "cpu", or "cuda".'
@@ -77,7 +95,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
 @torch.no_grad()
 def _predict_mlp(
     model: torch.nn.Module, tensors: dict[str, torch.Tensor], device: torch.device
-) -> dict[str, np.ndarray | None]:
+) -> SessionPredictions:
     """Predict every tick independently (MLPPolicy has no history requirement)."""
     batch = {k: tensors[k].to(device) for k in _FEATURE_KEYS}
     output = model(batch)
@@ -94,7 +112,7 @@ def _predict_gru(
     tensors: dict[str, torch.Tensor],
     device: torch.device,
     window_length: int,
-) -> dict[str, np.ndarray | None]:
+) -> SessionPredictions:
     """Predict tick ``t`` for every ``t >= window_length - 1`` using the preceding window.
 
     Ticks before the first full window (``t < window_length - 1``) have no
@@ -102,8 +120,9 @@ def _predict_gru(
     """
     num_ticks = tensors["continuous"].shape[0]
     mouse = np.full((num_ticks, 2), np.nan, dtype=np.float32)
-    discrete_prob = np.full((num_ticks, len(DISCRETE_ACTION_NAMES)), np.nan, dtype=np.float32)
-    block_logits = None
+    discrete_prob = np.full(
+        (num_ticks, len(DISCRETE_ACTION_NAMES)), np.nan, dtype=np.float32
+    )
 
     valid_ends = list(range(window_length - 1, num_ticks))
     if not valid_ends:
@@ -116,7 +135,8 @@ def _predict_gru(
 
     windows = {
         key: torch.stack(
-            [tensors[key][end - window_length + 1 : end + 1] for end in valid_ends], dim=0
+            [tensors[key][end - window_length + 1 : end + 1] for end in valid_ends],
+            dim=0,
         ).to(device)
         for key in _FEATURE_KEYS
     }
@@ -129,7 +149,11 @@ def _predict_gru(
         mouse[end] = pred_mouse[i]
         discrete_prob[end] = pred_discrete[i]
         block_logits[end] = pred_block[i]
-    return {"mouse": mouse, "discrete_prob": discrete_prob, "block_logits": block_logits}
+    return {
+        "mouse": mouse,
+        "discrete_prob": discrete_prob,
+        "block_logits": block_logits,
+    }
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -155,14 +179,16 @@ def main(argv: list[str] | None = None) -> None:
     # herbert_nn.data.features.encode_session_raw's signature.
     session_id: str = getattr(header, "session_id")  # noqa: B009
     records = cast(list[TickRecordV1], raw_records)
-    logger.info("Loaded session %s (%s) with %d ticks.", session_id, session_path, len(records))
+    logger.info(
+        "Loaded session %s (%s) with %d ticks.", session_id, session_path, len(records)
+    )
 
     raw_arrays = encode_session_raw(records, session_id, manifest.block_grid_shape)
     tensors = encode_session_for_inference(raw_arrays, manifest)
 
     place_block_type_vocab: CategoricalVocab = manifest.place_block_type_vocab
 
-    preds: dict[str, np.ndarray | None]
+    preds: SessionPredictions
     if family == "mlp":
         preds = _predict_mlp(model, tensors, device)
     elif family == "gru":
@@ -183,7 +209,11 @@ def main(argv: list[str] | None = None) -> None:
 
 
 def _write_csv(
-    csv_path: Path, records, raw_arrays, preds, place_block_type_vocab: CategoricalVocab
+    csv_path: Path,
+    records: list[TickRecordV1],
+    raw_arrays: SessionArrays,
+    preds: SessionPredictions,
+    place_block_type_vocab: CategoricalVocab,
 ) -> None:
     fieldnames = [
         "tick",
@@ -216,29 +246,45 @@ def _write_csv(
             block_logits = preds["block_logits"]
             if block_logits is not None and not np.isnan(block_logits[i]).all():
                 top1_idx = int(np.nanargmax(block_logits[i]))
-                row["pred_place_block_type_top1"] = place_block_type_vocab.decode(top1_idx)
+                row["pred_place_block_type_top1"] = place_block_type_vocab.decode(
+                    top1_idx
+                )
             else:
                 row["pred_place_block_type_top1"] = ""
             writer.writerow(row)
 
 
-def _write_figure(fig_path: Path, records, raw_arrays, preds, session_id: str) -> None:
+def _write_figure(
+    fig_path: Path,
+    records: list[TickRecordV1],
+    raw_arrays: SessionArrays,
+    preds: SessionPredictions,
+    session_id: str,
+) -> None:
     ticks = [r.tick for r in records]
     fig, axes = plt.subplots(3, 1, figsize=(12, 9), sharex=True)
 
     axes[0].plot(ticks, raw_arrays.mouse_target[:, 0], label="actual d_yaw", alpha=0.7)
-    axes[0].plot(ticks, preds["mouse"][:, 0], label="pred d_yaw", alpha=0.7, linestyle="--")
+    axes[0].plot(
+        ticks, preds["mouse"][:, 0], label="pred d_yaw", alpha=0.7, linestyle="--"
+    )
     axes[0].set_ylabel("d_yaw")
     axes[0].legend(loc="upper right")
     axes[0].set_title(f"Replay inspection: session {session_id}")
 
-    axes[1].plot(ticks, raw_arrays.mouse_target[:, 1], label="actual d_pitch", alpha=0.7)
-    axes[1].plot(ticks, preds["mouse"][:, 1], label="pred d_pitch", alpha=0.7, linestyle="--")
+    axes[1].plot(
+        ticks, raw_arrays.mouse_target[:, 1], label="actual d_pitch", alpha=0.7
+    )
+    axes[1].plot(
+        ticks, preds["mouse"][:, 1], label="pred d_pitch", alpha=0.7, linestyle="--"
+    )
     axes[1].set_ylabel("d_pitch")
     axes[1].legend(loc="upper right")
 
     for j, name in enumerate(DISCRETE_ACTION_NAMES):
-        axes[2].plot(ticks, preds["discrete_prob"][:, j], label=f"pred {name} prob", alpha=0.6)
+        axes[2].plot(
+            ticks, preds["discrete_prob"][:, j], label=f"pred {name} prob", alpha=0.6
+        )
         actual = raw_arrays.discrete_target[:, j]
         active_ticks = [t for t, a in zip(ticks, actual, strict=True) if a > 0.5]
         axes[2].scatter(

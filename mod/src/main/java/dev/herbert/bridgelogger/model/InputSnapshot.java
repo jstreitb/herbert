@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 package dev.herbert.bridgelogger.model;
 
 import com.google.gson.annotations.SerializedName;

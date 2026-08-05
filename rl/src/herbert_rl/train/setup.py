@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Shared setup: build the two bridge-backed envs, the `MatchCoordinator`, and the `PPO` model.
 
 Used by both `train.py` (Hydra-driven, requires a real `/nn` checkpoint) and `smoketest.py`
@@ -67,10 +68,29 @@ def build_training_components(
     """Build everything needed to start collecting rollouts: spawns both bridge processes.
 
     Args:
+        host: Hostname/IP of the private Minecraft server both bots connect to.
+        port: Port of the private Minecraft server.
+        username_a: Bot account username for side A of the duel.
+        username_b: Bot account username for side B of the duel.
+        nn_cache_manifest_path: Path to the `/nn` preprocessing cache `manifest.json` (or its
+            parent directory) the checkpoint being fine-tuned was trained against.
         checkpoint_path: Path to a `/nn` checkpoint to warm-start the policy from. If ``None``,
             ``fresh_model_cfg`` (a `/nn`-shaped ``model`` config dict, e.g.
             ``{"family": "mlp", "hidden_dims": [64, 32], ...}``) is used to build a randomly
             initialized backbone instead -- only valid for `rl.smoketest`.
+        fresh_model_cfg: Fallback model config used only when ``checkpoint_path`` is ``None``.
+        window_length: Number of ticks per GRU observation window (``1`` for an MLP family).
+        view_distance: Block-grid view distance passed through to the bridge process.
+        node_executable: Path/name of the ``node`` executable used to spawn bridge processes.
+        bridge_log_level: Log level passed to each spawned `/rl/bridge` Node.js process.
+        bridge_startup_timeout_s: Seconds to wait for a bridge process to report ready.
+        bridge_reset_timeout_s: Seconds to wait for a bridge process to complete a reset.
+        bridge_tick_timeout_s: Seconds to wait for a bridge process to respond to one tick.
+        reward_cfg: Reward-weight config dict passed to :func:`build_reward_weights`.
+        match_end: Match-end detection thresholds (score/timeout) shared by both sides.
+        ppo_kwargs: Extra keyword arguments forwarded to `stable_baselines3.PPO`.
+        device: Torch device string (``"auto"``/``"cpu"``/``"cuda"``) for the PPO model.
+        seed: RNG seed forwarded to `stable_baselines3.PPO`.
 
     Returns:
         ``(model, coordinator, obs_a, obs_b)`` -- ``model.rollout_buffer``/``model.policy`` are
@@ -84,7 +104,9 @@ def build_training_components(
         loaded_backbone = load_nn_checkpoint(checkpoint_path, map_location=device)
     else:
         if fresh_model_cfg is None:
-            raise ValueError("Either checkpoint_path or fresh_model_cfg must be provided.")
+            raise ValueError(
+                "Either checkpoint_path or fresh_model_cfg must be provided."
+            )
         data_meta = RLDataMeta(
             block_grid_shape=cache_stats.block_grid_shape,
             item_type_vocab_size=cache_stats.item_type_vocab.size,

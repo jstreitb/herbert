@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// SPDX-License-Identifier: MIT
 'use strict';
 
 /**
@@ -97,6 +98,16 @@ function main() {
   let tickCounter = 0;
   let matchStateTracker = null;
   let hasEmittedReady = false;
+  // Guards against overlapping handleAction/handleReset executions: both are async but their
+  // ipc.listenForCommands callers don't await them, so if Python (or a human debugging via
+  // start_both.sh) ever sent a second command before the first one's observation was emitted,
+  // two concurrent runs could interleave tickCounter increments and emit observations out of
+  // order relative to the actions that produced them, desyncing the one-action-in/
+  // one-observation-out IPC contract for the rest of the episode. Since the normal Python
+  // driver is strictly request/response (never sends a second command before reading the
+  // first's response), this should never trigger in practice; if it does, drop the new
+  // command loudly rather than silently corrupting the tick stream.
+  let busy = false;
 
   const reconnectingBot = new ReconnectingBot(
     {
@@ -151,6 +162,7 @@ function main() {
   }
 
   async function handleAction(action) {
+    busy = true;
     try {
       const bot = reconnectingBot.getBot();
       if (!bot || !matchStateTracker) {
@@ -162,10 +174,13 @@ function main() {
     } catch (err) {
       ipc.log('error', `Error while handling action: ${err && err.stack}`);
       await emitTickFor(reconnectingBot.getBot(), actionToEcho(action));
+    } finally {
+      busy = false;
     }
   }
 
   async function handleReset() {
+    busy = true;
     try {
       tickCounter = 0;
       const bot = reconnectingBot.getBot();
@@ -177,6 +192,8 @@ function main() {
       await emitTickFor(reconnectingBot.getBot(), NO_OP_ECHO);
     } catch (err) {
       ipc.log('error', `Error while handling reset: ${err && err.stack}`);
+    } finally {
+      busy = false;
     }
   }
 
@@ -188,9 +205,25 @@ function main() {
 
   ipc.listenForCommands({
     onAction: (command) => {
+      if (busy) {
+        ipc.log(
+          'warn',
+          'Dropping action command received while a previous command is still being ' +
+            'processed (protocol expects strict one-command-at-a-time request/response).'
+        );
+        return;
+      }
       handleAction(command);
     },
     onReset: () => {
+      if (busy) {
+        ipc.log(
+          'warn',
+          'Dropping reset command received while a previous command is still being ' +
+            'processed (protocol expects strict one-command-at-a-time request/response).'
+        );
+        return;
+      }
       handleReset();
     },
     onClose: handleClose,

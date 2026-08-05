@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Tests for feature normalization, categorical vocab encoding, and sliding-window building.
 
 Uses small synthetic in-memory fixtures throughout -- no dependency on real
@@ -7,6 +8,7 @@ recorded session data.
 from __future__ import annotations
 
 import numpy as np
+import pytest
 import torch
 
 from herbert_nn.data.cache import SessionBoundary
@@ -38,6 +40,22 @@ def test_standardizer_handles_constant_column_without_div_by_zero() -> None:
     standardizer = Standardizer().fit(train)
     transformed = standardizer.transform(train)
     assert np.all(np.isfinite(transformed))
+
+
+def test_standardizer_fit_zero_rows_raises_instead_of_producing_nan() -> None:
+    empty = np.zeros((0, 3), dtype=np.float32)
+    with pytest.raises(ValueError, match="zero rows"):
+        Standardizer().fit(empty)
+
+
+def test_standardizer_fit_wrong_ndim_raises() -> None:
+    with pytest.raises(ValueError, match="2D"):
+        Standardizer().fit(np.zeros((5, 3, 2), dtype=np.float32))
+
+
+def test_standardizer_transform_before_fit_raises() -> None:
+    with pytest.raises(RuntimeError, match="before fit"):
+        Standardizer().transform(np.zeros((1, 3), dtype=np.float32))
 
 
 def test_standardizer_roundtrip_serialization() -> None:
@@ -116,7 +134,9 @@ def test_window_dataset_never_crosses_session_boundary() -> None:
         start = end - dataset.window_length + 1
         # Both start and end must fall within the same session's [start, end) range.
         owning = [b for b in boundaries if b.start <= start and end < b.end]
-        assert len(owning) == 1, f"window [{start}, {end}] does not stay within one session"
+        assert (
+            len(owning) == 1
+        ), f"window [{start}, {end}] does not stay within one session"
 
 
 def test_window_dataset_sample_shapes_and_target_is_last_tick() -> None:

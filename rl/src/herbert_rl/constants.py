@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Canonical feature layout and enum-to-index mappings, kept in lockstep with `/nn`.
 
 **Sync point, not a runtime import.** `/rl` is not allowed to import `herbert_nn` at runtime

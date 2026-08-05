@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 'use strict';
 
 /**
@@ -18,6 +19,12 @@
 
 function createMatchStateTracker(bot, config) {
   const { ownScorePattern, opponentScorePattern, elapsedSecondsPattern, kitPattern } = config;
+  // Compiled once here rather than on every firstMatch() call -- getMatchState() runs every
+  // tick, so rebuilding these four RegExp objects from source 4x/tick would be wasted work.
+  const ownScoreRegex = ownScorePattern ? new RegExp(ownScorePattern) : null;
+  const opponentScoreRegex = opponentScorePattern ? new RegExp(opponentScorePattern) : null;
+  const elapsedSecondsRegex = elapsedSecondsPattern ? new RegExp(elapsedSecondsPattern) : null;
+  const kitRegex = kitPattern ? new RegExp(kitPattern) : null;
   let pendingChatLines = [];
 
   bot.on('message', (jsonMsg) => {
@@ -56,9 +63,8 @@ function createMatchStateTracker(bot, config) {
     return lines;
   }
 
-  function firstMatch(lines, pattern) {
-    if (!pattern) return null;
-    const regex = new RegExp(pattern);
+  function firstMatch(lines, regex) {
+    if (!regex) return null;
     for (const line of lines) {
       const match = regex.exec(line);
       if (match) {
@@ -68,13 +74,21 @@ function createMatchStateTracker(bot, config) {
     return null;
   }
 
-  /** @returns {{own_score: number|null, opponent_score: number|null, elapsed_seconds: number|null, kit: string|null}} */
+  /**
+   * @returns {{own_score: number|null, opponent_score: number|null, elapsed_seconds:
+   *   number|null, kit: string|null}|null} `null` if literally nothing was parseable this
+   *   tick, matching `/mod`'s documented contract ("the object is only entirely null when
+   *   nothing at all was parseable that tick" -- see mod/README.md's JSONL schema section).
+   *   `/nn`'s feature encoding sets a `match_context_present` flag from `match is not None`,
+   *   so always returning a non-null object here would systematically bias that feature
+   *   during RL fine-tuning relative to how it behaves in `/mod`-recorded BC training data.
+   */
   function getMatchState() {
     const lines = scoreboardLines();
-    const ownScoreRaw = firstMatch(lines, ownScorePattern);
-    const opponentScoreRaw = firstMatch(lines, opponentScorePattern);
-    const elapsedRaw = firstMatch(lines, elapsedSecondsPattern);
-    const kitRaw = firstMatch(lines, kitPattern);
+    const ownScoreRaw = firstMatch(lines, ownScoreRegex);
+    const opponentScoreRaw = firstMatch(lines, opponentScoreRegex);
+    const elapsedRaw = firstMatch(lines, elapsedSecondsRegex);
+    const kitRaw = firstMatch(lines, kitRegex);
 
     let elapsedSeconds = null;
     if (elapsedRaw !== null) {
@@ -87,10 +101,19 @@ function createMatchStateTracker(bot, config) {
       }
     }
 
+    const ownScore =
+      ownScoreRaw !== null && Number.isFinite(Number(ownScoreRaw)) ? Number(ownScoreRaw) : null;
+    const opponentScore =
+      opponentScoreRaw !== null && Number.isFinite(Number(opponentScoreRaw))
+        ? Number(opponentScoreRaw)
+        : null;
+
+    if (ownScore === null && opponentScore === null && elapsedSeconds === null && kitRaw === null) {
+      return null;
+    }
     return {
-      own_score: ownScoreRaw !== null && Number.isFinite(Number(ownScoreRaw)) ? Number(ownScoreRaw) : null,
-      opponent_score:
-        opponentScoreRaw !== null && Number.isFinite(Number(opponentScoreRaw)) ? Number(opponentScoreRaw) : null,
+      own_score: ownScore,
+      opponent_score: opponentScore,
       elapsed_seconds: elapsedSeconds,
       kit: kitRaw,
     };

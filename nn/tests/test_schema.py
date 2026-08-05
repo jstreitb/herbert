@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Tests for schema parsing, version dispatch, and error handling."""
 
 from __future__ import annotations
@@ -53,7 +54,10 @@ def test_valid_record_parses(record_overrides: dict) -> None:
         # Invalid enum value for block_grid cell type.
         {
             **make_record(0),
-            "block_grid": {**make_record(0)["block_grid"], "cells": ["NOT_A_REAL_CELL_TYPE"] * 8},
+            "block_grid": {
+                **make_record(0)["block_grid"],
+                "cells": ["NOT_A_REAL_CELL_TYPE"] * 8,
+            },
         },
         # Wrong type: forward must be an int in [-1, 1].
         {**make_record(0), "input": {**make_record(0)["input"], "forward": 5}},

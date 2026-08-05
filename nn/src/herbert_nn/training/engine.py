@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Reusable train/eval epoch loop: mixed precision, gradient accumulation, clipping.
 
 Used by both the full ``herbert_nn.train`` Hydra-driven CLI and the fast
@@ -43,14 +44,23 @@ class EpochStats:
     num_samples: int = 0
 
     def update(self, breakdown: dict[str, torch.Tensor], batch_size: int) -> None:
+        """Accumulate one batch's loss breakdown into the running totals.
+
+        Args:
+            breakdown: A :class:`herbert_nn.models.losses.LossBreakdown` for one batch.
+            batch_size: Number of samples in that batch, used to weight the running average.
+        """
         self.total += float(breakdown["total"].detach().item()) * batch_size
         self.mouse += float(breakdown["mouse"].detach().item()) * batch_size
         self.discrete += float(breakdown["discrete"].detach().item()) * batch_size
-        self.block_placement += float(breakdown["block_placement"].detach().item()) * batch_size
+        self.block_placement += (
+            float(breakdown["block_placement"].detach().item()) * batch_size
+        )
         self.num_batches += 1
         self.num_samples += batch_size
 
     def averaged(self) -> dict[str, float]:
+        """Return the running totals divided by the number of samples seen so far."""
         n = max(1, self.num_samples)
         return {
             "total": self.total / n,
@@ -109,7 +119,8 @@ def run_epoch(
     effective_amp = amp and device.type == "cuda"
     if amp and not effective_amp:
         logger.warning(
-            "AMP requested but device is %s (not cuda); running in full precision.", device.type
+            "AMP requested but device is %s (not cuda); running in full precision.",
+            device.type,
         )
 
     model.train(mode=is_train)
@@ -142,12 +153,16 @@ def run_epoch(
                     if scaler is not None and effective_amp:
                         if grad_clip_norm is not None:
                             scaler.unscale_(train_optimizer)
-                            torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip_norm)
+                            torch.nn.utils.clip_grad_norm_(
+                                model.parameters(), grad_clip_norm
+                            )
                         scaler.step(train_optimizer)
                         scaler.update()
                     else:
                         if grad_clip_norm is not None:
-                            torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip_norm)
+                            torch.nn.utils.clip_grad_norm_(
+                                model.parameters(), grad_clip_norm
+                            )
                         train_optimizer.step()
                     train_optimizer.zero_grad(set_to_none=True)
                     if scheduler is not None:

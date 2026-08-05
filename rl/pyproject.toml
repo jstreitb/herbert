@@ -55,19 +55,41 @@ include = ["herbert_rl*"]
 # `rl/` directory (see README.md).
 
 [tool.ruff]
-line-length = 100
+line-length = 88
 target-version = "py310"
 src = ["src", "tests"]
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM"]
-ignore = ["E501"]
+select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM", "D"]
+# E501 (line too long) is left to Black, which is the source of truth for line length and
+# will leave a small number of unsplittable tokens (long URLs, string literals) over the
+# limit on purpose. The ignored D codes are formatting-preference variants of Google-style
+# docstrings (blank-line placement, section ordering) that conflict with the convention used
+# throughout this codebase, not indicators of missing/incomplete documentation.
+ignore = [
+    "E501",
+    "D203",
+    "D212",
+    "D213",
+    "D215",
+    "D404",
+    "D406",
+    "D407",
+    "D408",
+    "D409",
+    "D413",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Test function names are the documentation (test_{what}_{condition}), per pytest convention;
+# module/class docstrings are still required.
+"tests/*" = ["D101", "D102", "D103", "D107"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["herbert_rl"]
 
 [tool.black]
-line-length = 100
+line-length = 88
 target-version = ["py310", "py311"]
 
 [tool.mypy]
@@ -75,7 +97,7 @@ python_version = "3.10"
 ignore_missing_imports = true
 warn_unused_ignores = true
 warn_redundant_casts = true
-disallow_untyped_defs = false
+disallow_untyped_defs = true
 check_untyped_defs = true
 exclude = ["tests/", "conf/"]
 

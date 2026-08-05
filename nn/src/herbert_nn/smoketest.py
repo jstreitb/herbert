@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """``python -m herbert_nn.smoketest`` -- fast end-to-end pipeline validation.
 
 Runs one epoch over 200 randomly-generated (but shape/dtype-correct)
@@ -28,7 +29,11 @@ from herbert_nn.models.losses import CompositeLoss
 from herbert_nn.training.checkpoint import save_checkpoint
 from herbert_nn.training.engine import run_epoch
 from herbert_nn.training.seed import set_seed
-from herbert_nn.training.smoke import SMOKE_WINDOW_LENGTH, SyntheticDataset, smoke_data_meta
+from herbert_nn.training.smoke import (
+    SMOKE_WINDOW_LENGTH,
+    SyntheticDataset,
+    smoke_data_meta,
+)
 from herbert_nn.training.train_loop import resolve_device
 
 logger = logging.getLogger(__name__)
@@ -65,14 +70,22 @@ def build_arg_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
-        "--model", default="mlp", choices=["mlp", "gru"], help="Which policy family to smoke-test."
+        "--model",
+        default="mlp",
+        choices=["mlp", "gru"],
+        help="Which policy family to smoke-test.",
     )
     parser.add_argument(
-        "--num-samples", type=int, default=200, help="Number of synthetic samples for the epoch."
+        "--num-samples",
+        type=int,
+        default=200,
+        help="Number of synthetic samples for the epoch.",
     )
     parser.add_argument("--batch-size", type=int, default=32, help="Batch size.")
     parser.add_argument(
-        "--output-dir", default="runs/smoketest", help="Directory to write the checkpoint into."
+        "--output-dir",
+        default="runs/smoketest",
+        help="Directory to write the checkpoint into.",
     )
     parser.add_argument(
         "--device", default="cpu", help='Device to run on: "auto", "cpu", or "cuda".'
@@ -95,7 +108,9 @@ def main(argv: list[str] | None = None) -> None:
     data_meta = smoke_data_meta()
     window_length = SMOKE_WINDOW_LENGTH if args.model == "gru" else None
     dataset = SyntheticDataset(args.num_samples, data_meta, window_length)
-    loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, num_workers=0)
+    loader = DataLoader(
+        dataset, batch_size=args.batch_size, shuffle=True, num_workers=0
+    )
 
     model_cfg = _GRU_MODEL_CFG if args.model == "gru" else _MLP_MODEL_CFG
     model = build_model(model_cfg, data_meta).to(device)

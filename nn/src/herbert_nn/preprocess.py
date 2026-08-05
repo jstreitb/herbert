@@ -1,4 +1,5 @@
-"""``python -m herbert_nn.preprocess`` -- raw JSONL sessions -> cached tensors.
+# SPDX-License-Identifier: MIT
+r"""``python -m herbert_nn.preprocess`` -- raw JSONL sessions -> cached tensors.
 
 Parses every ``*.jsonl`` session log under ``--raw-dir``, validates it
 against the BridgeLogger schema, engineers features, fits normalization
@@ -8,7 +9,7 @@ directory under ``--cache-dir``. Re-running with the same raw files and
 config reuses the existing cache; use ``--force-rebuild`` to recompute.
 
 Example:
-    python -m herbert_nn.preprocess --raw-dir data/raw --cache-dir data/cache \\
+    python -m herbert_nn.preprocess --raw-dir data/raw --cache-dir data/cache \
         --window-length 32
 """
 
@@ -34,7 +35,9 @@ def build_arg_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
-        "--raw-dir", required=True, help="Directory containing raw *.jsonl session log files."
+        "--raw-dir",
+        required=True,
+        help="Directory containing raw *.jsonl session log files.",
     )
     parser.add_argument(
         "--cache-dir",
@@ -48,13 +51,22 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="GRU sliding-window length in ticks (also stored in the cache manifest).",
     )
     parser.add_argument(
-        "--window-stride", type=int, default=1, help="Stride, in ticks, between window starts."
+        "--window-stride",
+        type=int,
+        default=1,
+        help="Stride, in ticks, between window starts.",
     )
     parser.add_argument(
-        "--train-ratio", type=float, default=0.8, help="Training split fraction of sessions."
+        "--train-ratio",
+        type=float,
+        default=0.8,
+        help="Training split fraction of sessions.",
     )
     parser.add_argument(
-        "--val-ratio", type=float, default=0.1, help="Validation split fraction of sessions."
+        "--val-ratio",
+        type=float,
+        default=0.1,
+        help="Validation split fraction of sessions.",
     )
     parser.add_argument(
         "--test-ratio", type=float, default=0.1, help="Test split fraction of sessions."
@@ -107,7 +119,9 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="Ignore any existing cache for this config and rebuild from raw data.",
     )
     parser.add_argument(
-        "--log-level", default="INFO", help="Python logging level, e.g. DEBUG, INFO, WARNING."
+        "--log-level",
+        default="INFO",
+        help="Python logging level, e.g. DEBUG, INFO, WARNING.",
     )
     return parser
 

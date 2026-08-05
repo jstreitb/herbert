@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Tests for `herbert_rl.env.ipc` -- JSON-lines IPC serialization/deserialization round-trips."""
 
 from __future__ import annotations

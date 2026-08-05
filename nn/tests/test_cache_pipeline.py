@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """End-to-end preprocessing cache tests: raw JSONL -> normalized, cached tensors.
 
 Exercises herbert_nn.data.cache against the synthetic ``raw_session_dir``
@@ -8,9 +9,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from herbert_nn.data.cache import build_or_load_cache
 from herbert_nn.data.config import PreprocessConfig
 from herbert_nn.data.dataset import build_dataset
+from herbert_nn.schemas.registry import SchemaVersionError
 
 
 def _base_config(raw_dir: Path, cache_dir: Path, **overrides) -> PreprocessConfig:
@@ -51,7 +55,9 @@ def test_build_cache_produces_all_splits_with_no_session_overlap(
         assert tensors["continuous"].shape[1] > 0
 
 
-def test_cache_is_reused_on_identical_rerun(raw_session_dir: Path, tmp_path: Path) -> None:
+def test_cache_is_reused_on_identical_rerun(
+    raw_session_dir: Path, tmp_path: Path
+) -> None:
     config = _base_config(raw_session_dir, tmp_path / "cache")
     bundle1 = build_or_load_cache(config)
     bundle2 = build_or_load_cache(config)
@@ -59,13 +65,43 @@ def test_cache_is_reused_on_identical_rerun(raw_session_dir: Path, tmp_path: Pat
     assert bundle1.manifest.config_hash == bundle2.manifest.config_hash
 
 
-def test_cache_invalidated_by_config_change(raw_session_dir: Path, tmp_path: Path) -> None:
+def test_cache_invalidated_by_config_change(
+    raw_session_dir: Path, tmp_path: Path
+) -> None:
     cache_dir = tmp_path / "cache"
     config_a = _base_config(raw_session_dir, cache_dir, window_length=8)
     config_b = _base_config(raw_session_dir, cache_dir, window_length=16)
     bundle_a = build_or_load_cache(config_a)
     bundle_b = build_or_load_cache(config_b)
     assert bundle_a.cache_path != bundle_b.cache_path
+
+
+def test_build_cache_empty_raw_dir_raises_file_not_found(tmp_path: Path) -> None:
+    empty_raw_dir = tmp_path / "empty_raw"
+    empty_raw_dir.mkdir()
+    config = _base_config(empty_raw_dir, tmp_path / "cache")
+    with pytest.raises(FileNotFoundError, match="No \\*.jsonl session files"):
+        build_or_load_cache(config)
+
+
+def test_build_cache_empty_first_raw_file_raises_clear_error(
+    raw_session_dir: Path, tmp_path: Path
+) -> None:
+    # An empty raw file sorts before every real "session-*.jsonl" file, so it's the one
+    # the cheap schema-version pre-pass reads first.
+    (raw_session_dir / "0_empty.jsonl").write_text("")
+    config = _base_config(raw_session_dir, tmp_path / "cache")
+    with pytest.raises(SchemaVersionError, match="file is empty"):
+        build_or_load_cache(config)
+
+
+def test_build_cache_malformed_first_raw_file_raises_clear_error(
+    raw_session_dir: Path, tmp_path: Path
+) -> None:
+    (raw_session_dir / "0_malformed.jsonl").write_text("this is not json at all\n")
+    config = _base_config(raw_session_dir, tmp_path / "cache")
+    with pytest.raises(SchemaVersionError, match="not valid JSON"):
+        build_or_load_cache(config)
 
 
 def test_normalization_stats_come_from_train_split_only(

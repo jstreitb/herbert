@@ -1,8 +1,12 @@
+// SPDX-License-Identifier: MIT
 package dev.herbert.bridgelogger.config;
 
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 
 import dev.herbert.bridgelogger.util.HerbertConstants;
 import net.minecraftforge.common.config.Configuration;
@@ -71,12 +75,13 @@ public final class HerbertConfig {
             // Try to read injected webhook URL from the bundled resource file (set at build time).
             String injectedWebhookDefault = loadInjectedWebhookUrl();
             discordWebhookUrl = getString(HerbertConstants.CONFIG_CATEGORY_GENERAL, "discordWebhookUrl", injectedWebhookDefault,
-                    "Discord webhook URL that completed session uploads are announced to. "
-                            + "If left empty, the entire upload flow (pastes.dev + Discord) is skipped and a chat warning is shown instead. "
+                    "Discord webhook URL that completed sessions are uploaded to directly (as a file attachment -- "
+                            + "this mod does not use any third-party paste-hosting service). "
+                            + "If left empty, the upload is skipped and a chat warning is shown instead. "
                             + "(This default may have been pre-filled at build time from webhook.txt if present.)");
 
             dryRunMode = getBoolean(HerbertConstants.CONFIG_CATEGORY_GENERAL, "dryRunMode", false,
-                    "If true, sessions are still written to disk as JSONL but the pastes.dev/Discord upload step is skipped entirely. Useful for local-only testing.");
+                    "If true, sessions are still written to disk as JSONL but the Discord upload step is skipped entirely. Useful for local-only testing.");
 
             voidThresholdY = getInt(HerbertConstants.CONFIG_CATEGORY_GENERAL, "voidThresholdY",
                     HerbertConstants.DEFAULT_VOID_THRESHOLD_Y,
@@ -236,22 +241,27 @@ public final class HerbertConfig {
      * @return the webhook URL from webhook.properties, or an empty string if not found/readable.
      */
     private String loadInjectedWebhookUrl() {
-        try (BufferedReader reader = new BufferedReader(
-                new InputStreamReader(HerbertConfig.class.getResourceAsStream("/webhook.properties")))) {
-            if (reader != null) {
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    line = line.trim();
-                    if (line.startsWith("discordWebhookUrl=") && !line.startsWith("#")) {
-                        String value = line.substring("discordWebhookUrl=".length()).trim();
-                        if (!value.isEmpty()) {
-                            return value;
-                        }
+        InputStream stream = HerbertConfig.class.getResourceAsStream("/webhook.properties");
+        if (stream == null) {
+            // Not a build that injected a webhook.txt -- this is the normal case for a
+            // from-source build with no pre-configured webhook, not an error.
+            return "";
+        }
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                line = line.trim();
+                if (line.startsWith("discordWebhookUrl=") && !line.startsWith("#")) {
+                    String value = line.substring("discordWebhookUrl=".length()).trim();
+                    if (!value.isEmpty()) {
+                        return value;
                     }
                 }
             }
-        } catch (Exception e) {
-            // Resource not found or not readable; silently ignore and use default empty string.
+        } catch (IOException e) {
+            // webhook.properties exists but could not be read; fall back to the empty default
+            // rather than failing mod initialization over an optional, best-effort convenience
+            // file. The user can still set discordWebhookUrl manually in the generated config.
         }
         return "";
     }

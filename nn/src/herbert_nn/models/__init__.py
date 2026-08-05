@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Policy models (MLP / GRU) sharing a common feature encoder and multi-head output."""
 
 from __future__ import annotations

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Per-tick observation schema emitted by `/rl/bridge`, byte-for-byte compatible with `/mod`.
 
 **Sync point, not a runtime import.** This is a hand-maintained copy of the per-tick portion of
@@ -33,6 +34,8 @@ class _StrictModel(BaseModel):
 
 
 class BlockCellType(str, Enum):
+    """Coarse categorical classification of a single block-grid cell."""
+
     AIR = "AIR"
     SOLID_BRIDGEABLE = "SOLID_BRIDGEABLE"
     LIQUID = "LIQUID"
@@ -41,6 +44,8 @@ class BlockCellType(str, Enum):
 
 
 class HeldItemCategory(str, Enum):
+    """Coarse categorical classification of an opponent's held item."""
+
     SWORD = "SWORD"
     BOW = "BOW"
     BLOCKS = "BLOCKS"
@@ -48,6 +53,8 @@ class HeldItemCategory(str, Enum):
 
 
 class PlayerState(_StrictModel):
+    """Player kinematic and vital state at a single tick."""
+
     x: float
     y: float
     z: float
@@ -63,6 +70,8 @@ class PlayerState(_StrictModel):
 
 
 class BlockGrid(_StrictModel):
+    """Flattened local block grid around the player at a single tick."""
+
     width: int
     height: int
     depth: int
@@ -71,12 +80,16 @@ class BlockGrid(_StrictModel):
 
 
 class HeldItem(_StrictModel):
+    """Player's currently-selected hotbar slot at a single tick."""
+
     hotbar_slot: int = Field(..., ge=0, le=8)
     item_id: str | None = None
     count: int
 
 
 class Opponent(_StrictModel):
+    """Best-effort detected opponent state, relative to the player."""
+
     rel_x: float
     rel_y: float
     rel_z: float
@@ -90,6 +103,8 @@ class Opponent(_StrictModel):
 
 
 class MatchState(_StrictModel):
+    """Best-effort detected match/scoreboard context; every field independently nullable."""
+
     own_score: int | None = None
     opponent_score: int | None = None
     elapsed_seconds: int | None = None

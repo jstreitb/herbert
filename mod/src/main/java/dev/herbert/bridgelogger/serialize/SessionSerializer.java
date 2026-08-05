@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 package dev.herbert.bridgelogger.serialize;
 
 import org.apache.logging.log4j.Level;

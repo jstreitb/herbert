@@ -54,4 +54,4 @@ wandb/
 # --- Node (bridge/) ---
 bridge/node_modules/
 bridge/npm-debug.log*
-bridge/package-lock.json
+# bridge/package-lock.json is intentionally committed for reproducible installs.

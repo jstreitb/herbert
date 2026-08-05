@@ -1,9 +1,14 @@
+# SPDX-License-Identifier: MIT
 """Tests for `herbert_rl.env.spaces` -- observation/action space shape consistency with `/nn`'s schema."""
 
 from __future__ import annotations
 
 from factories import make_cache_stats
-from herbert_rl.constants import CONTINUOUS_FEATURE_DIM, NUM_HELD_ITEM_CATEGORIES, NUM_HOTBAR_SLOTS
+from herbert_rl.constants import (
+    CONTINUOUS_FEATURE_DIM,
+    NUM_HELD_ITEM_CATEGORIES,
+    NUM_HOTBAR_SLOTS,
+)
 from herbert_rl.env.spaces import build_action_space, build_observation_space
 
 
@@ -18,7 +23,10 @@ def test_observation_space_window_length_applies_to_every_field():
     window_length = 8
     space = build_observation_space(cache_stats, window_length=window_length)
     assert space["continuous"].shape == (window_length, CONTINUOUS_FEATURE_DIM)
-    assert space["block_grid_cells"].shape == (window_length, cache_stats.num_block_cells)
+    assert space["block_grid_cells"].shape == (
+        window_length,
+        cache_stats.num_block_cells,
+    )
     assert space["hotbar_slot_index"].shape == (window_length,)
     assert space["hotbar_item_type"].shape == (window_length,)
     assert space["opponent_held_item_category"].shape == (window_length,)
@@ -52,7 +60,15 @@ def test_observation_space_rejects_nonpositive_window_length():
 
 def test_action_space_covers_every_required_field():
     space = build_action_space()
-    expected_keys = {"move_forward", "strafe", "jump", "sneak", "attack", "place", "mouse"}
+    expected_keys = {
+        "move_forward",
+        "strafe",
+        "jump",
+        "sneak",
+        "attack",
+        "place",
+        "mouse",
+    }
     assert set(space.spaces.keys()) == expected_keys
 
 

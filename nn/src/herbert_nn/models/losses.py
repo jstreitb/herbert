@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Per-head losses and the configurable-weight composite loss.
 
 * :class:`MouseHeadLoss` -- Huber/SmoothL1 regression loss on ``(d_yaw, d_pitch)``.
@@ -32,11 +33,25 @@ class MouseHeadLoss(nn.Module):
     """Huber loss for the mouse-movement regression head."""
 
     def __init__(self, huber_delta: float = 1.0) -> None:
+        """Initialize the loss.
+
+        Args:
+            huber_delta: Threshold at which the Huber loss transitions from quadratic to
+                linear (``nn.HuberLoss``'s ``delta`` parameter).
+        """
         super().__init__()
         self.loss_fn = nn.HuberLoss(delta=huber_delta, reduction="mean")
 
     def forward(self, pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
-        """Args: ``pred``/``target`` shape ``[batch, 2]``. Returns a scalar."""
+        """Compute the mean Huber loss over the batch.
+
+        Args:
+            pred: Predicted ``(d_yaw, d_pitch)``, shape ``[batch, 2]``.
+            target: Ground-truth ``(d_yaw, d_pitch)``, shape ``[batch, 2]``.
+
+        Returns:
+            A scalar loss tensor.
+        """
         return self.loss_fn(pred, target)
 
 
@@ -44,11 +59,20 @@ class DiscreteHeadLoss(nn.Module):
     """BCE-with-logits loss for the binary multi-label discrete-action head."""
 
     def __init__(self) -> None:
+        """Initialize the loss with mean reduction over the batch."""
         super().__init__()
         self.loss_fn = nn.BCEWithLogitsLoss(reduction="mean")
 
     def forward(self, pred_logits: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
-        """Args: ``pred_logits``/``target`` shape ``[batch, 4]``. Returns a scalar."""
+        """Compute the mean BCE-with-logits loss over the batch.
+
+        Args:
+            pred_logits: Raw (pre-sigmoid) predictions, shape ``[batch, 4]``.
+            target: Ground-truth binary labels, shape ``[batch, 4]``.
+
+        Returns:
+            A scalar loss tensor.
+        """
         return self.loss_fn(pred_logits, target)
 
 
@@ -56,6 +80,11 @@ class BlockPlacementHeadLoss(nn.Module):
     """Cross-entropy loss over the block-type vocabulary, masked to place-active ticks."""
 
     def __init__(self) -> None:
+        """Initialize the loss.
+
+        Uses per-sample (unreduced) cross-entropy, reduced manually in :meth:`forward`
+        after masking to active-place ticks.
+        """
         super().__init__()
         self.loss_fn = nn.CrossEntropyLoss(reduction="none")
 
@@ -103,6 +132,14 @@ class CompositeLoss(nn.Module):
         block_placement_weight: float = 1.0,
         huber_delta: float = 1.0,
     ) -> None:
+        """Initialize the composite loss.
+
+        Args:
+            mouse_weight: Weight applied to the mouse-movement head's loss in the total sum.
+            discrete_weight: Weight applied to the discrete-action head's loss.
+            block_placement_weight: Weight applied to the block-placement head's loss.
+            huber_delta: Passed through to :class:`MouseHeadLoss`'s ``huber_delta``.
+        """
         super().__init__()
         self.mouse_weight = mouse_weight
         self.discrete_weight = discrete_weight
@@ -131,9 +168,13 @@ class CompositeLoss(nn.Module):
             individual head's (unweighted) loss value, for logging.
         """
         mouse = self.mouse_loss(predictions["mouse"], targets["mouse_target"])
-        discrete = self.discrete_loss(predictions["discrete"], targets["discrete_target"])
+        discrete = self.discrete_loss(
+            predictions["discrete"], targets["discrete_target"]
+        )
         block_placement = self.block_placement_loss(
-            predictions["block_placement"], targets["place_block_type"], targets["place_mask"]
+            predictions["block_placement"],
+            targets["place_block_type"],
+            targets["place_mask"],
         )
         total = (
             self.mouse_weight * mouse

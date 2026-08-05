@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Schema-version registry and version-dispatching parse helpers.
 
 To add support for a new ``schema_version`` (e.g. ``"1.1.0"``):
@@ -108,7 +109,9 @@ def parse_header_line(line: str) -> BaseModel:
     try:
         raw = json.loads(line)
     except json.JSONDecodeError as exc:
-        raise SchemaVersionError(f"Session header line is not valid JSON: {exc}") from exc
+        raise SchemaVersionError(
+            f"Session header line is not valid JSON: {exc}"
+        ) from exc
     if not isinstance(raw, dict) or "schema_version" not in raw:
         raise SchemaVersionError(
             "Session header line is missing the required 'schema_version' field."
@@ -181,10 +184,14 @@ def load_session(path: PathLike) -> tuple[BaseModel, list[BaseModel]]:
     return header, records
 
 
-def _load_session_from_filehandle(fh: TextIO, path: Path) -> tuple[BaseModel, list[BaseModel]]:
+def _load_session_from_filehandle(
+    fh: TextIO, path: Path
+) -> tuple[BaseModel, list[BaseModel]]:
     first_line = fh.readline()
     if not first_line.strip():
-        raise SessionParseError(f"{path}: file is empty, expected a session header line.")
+        raise SessionParseError(
+            f"{path}: file is empty, expected a session header line."
+        )
     try:
         header = parse_header_line(first_line)
     except (SchemaVersionError, ValidationError) as exc:

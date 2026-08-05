@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 package dev.herbert.bridgelogger.util;
 
 import java.util.ArrayList;
@@ -54,6 +55,8 @@ public final class ScoreboardUtil {
             String title = objective.getDisplayName();
             return title == null ? null : EnumChatFormatting.getTextWithoutFormattingCodes(title);
         } catch (Exception e) {
+            // Defensive: never let scoreboard parsing disrupt the tick handler; treat any
+            // unexpected scoreboard state as "no title available" rather than throwing.
             return null;
         }
     }

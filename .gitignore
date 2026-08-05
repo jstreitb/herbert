@@ -64,14 +64,15 @@ nn/runs/
 *.onnx
 wandb/
 
-# --- Node (in case tooling/docs pull in JS deps) -------------------------------
+# --- Node (rl/bridge is a real Node.js/Mineflayer project) ---------------------
 node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-package-lock.json
 .pnp/
 .pnp.js
+# package-lock.json is intentionally NOT ignored: rl/bridge has real npm dependencies
+# (mineflayer et al.) and the lockfile is committed for reproducible installs.
 
 # --- Secrets / environment -----------------------------------------------------
 .env
@@ -98,3 +99,4 @@ mod/**/herbert_logs/
 /bot/.env
 /bot/data/
 skins/
+videos/

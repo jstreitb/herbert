@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 """Synthetic BridgeLogger session builders shared by tests and conftest fixtures.
 
 Kept separate from ``conftest.py`` so test modules can import these factory
@@ -15,7 +16,9 @@ from typing import Any
 #: A tiny 2x2x2 = 8-cell block grid, used everywhere in tests to keep
 #: tensors small and fast.
 TEST_BLOCK_GRID_SHAPE = (2, 2, 2)
-TEST_NUM_CELLS = TEST_BLOCK_GRID_SHAPE[0] * TEST_BLOCK_GRID_SHAPE[1] * TEST_BLOCK_GRID_SHAPE[2]
+TEST_NUM_CELLS = (
+    TEST_BLOCK_GRID_SHAPE[0] * TEST_BLOCK_GRID_SHAPE[1] * TEST_BLOCK_GRID_SHAPE[2]
+)
 
 
 def make_header(session_id: str | None = None, **overrides: Any) -> dict[str, Any]:
@@ -59,7 +62,11 @@ def make_record(
             "origin": "player_feet_centered",
             "cells": ["AIR"] * (TEST_NUM_CELLS - 1) + ["SOLID_BRIDGEABLE"],
         },
-        "held_item": {"hotbar_slot": tick % 9, "item_id": "minecraft:wool", "count": 64},
+        "held_item": {
+            "hotbar_slot": tick % 9,
+            "item_id": "minecraft:wool",
+            "count": 64,
+        },
         "opponent": (
             {
                 "rel_x": 1.0,
