@@ -4,7 +4,7 @@
 Encodes every tick in the window with the same :class:`FeatureEncoder` used
 by :class:`herbert_nn.models.mlp.MLPPolicy`, runs the resulting sequence
 through a ``nn.GRU``, and feeds the final timestep's hidden state through an
-optional MLP trunk and the three shared output heads. Intended to capture
+optional MLP trunk and the four shared output heads. Intended to capture
 timing/sequential structure (e.g. wind-up before a jump-place, strafe
 patterns) that a single-tick model cannot see.
 """
@@ -16,7 +16,12 @@ from torch import nn
 
 from herbert_nn.models.base import DataMeta, PolicyOutput
 from herbert_nn.models.encoder import FeatureEncoder
-from herbert_nn.models.heads import BlockPlacementHead, DiscreteHead, MouseHead
+from herbert_nn.models.heads import (
+    BlockPlacementHead,
+    DiscreteHead,
+    MouseHead,
+    MovementHead,
+)
 
 
 class GRUPolicy(nn.Module):
@@ -87,6 +92,7 @@ class GRUPolicy(nn.Module):
         self.block_placement_head = BlockPlacementHead(
             trunk_dim, data_meta.place_block_type_vocab_size
         )
+        self.movement_head = MovementHead(trunk_dim)
 
     def forward(self, batch: dict[str, torch.Tensor]) -> PolicyOutput:
         """Run a forward pass.
@@ -116,4 +122,5 @@ class GRUPolicy(nn.Module):
             mouse=self.mouse_head(trunk_out),
             discrete=self.discrete_head(trunk_out),
             block_placement=self.block_placement_head(trunk_out),
+            movement=self.movement_head(trunk_out),
         )

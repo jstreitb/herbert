@@ -147,6 +147,7 @@ def run_training(cfg: DictConfig, run_dir: Path) -> dict[str, Any]:
         mouse_weight=float(cfg.training.loss_weights.mouse),
         discrete_weight=float(cfg.training.loss_weights.discrete),
         block_placement_weight=float(cfg.training.loss_weights.block_placement),
+        movement_weight=float(cfg.training.loss_weights.movement),
         huber_delta=float(cfg.training.huber_delta),
     ).to(device)
 
@@ -183,8 +184,9 @@ def run_training(cfg: DictConfig, run_dir: Path) -> dict[str, Any]:
         global_step += len(train_loader)
 
         logger.info(
-            "epoch %d/%d | train_loss=%.5f val_loss=%.5f | train(mouse=%.5f discrete=%.5f block=%.5f) "
-            "val(mouse=%.5f discrete=%.5f block=%.5f)",
+            "epoch %d/%d | train_loss=%.5f val_loss=%.5f | "
+            "train(mouse=%.5f discrete=%.5f block=%.5f movement=%.5f) "
+            "val(mouse=%.5f discrete=%.5f block=%.5f movement=%.5f)",
             epoch,
             int(cfg.training.epochs),
             train_metrics["total"],
@@ -192,9 +194,11 @@ def run_training(cfg: DictConfig, run_dir: Path) -> dict[str, Any]:
             train_metrics["mouse"],
             train_metrics["discrete"],
             train_metrics["block_placement"],
+            train_metrics["movement"],
             val_metrics["mouse"],
             val_metrics["discrete"],
             val_metrics["block_placement"],
+            val_metrics["movement"],
         )
         for split_name, metrics in (("train", train_metrics), ("val", val_metrics)):
             for k, v in metrics.items():

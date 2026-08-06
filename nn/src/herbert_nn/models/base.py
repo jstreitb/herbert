@@ -6,7 +6,7 @@ Both :class:`herbert_nn.models.mlp.MLPPolicy` and
 ``forward(batch: dict[str, Tensor]) -> PolicyOutput``, where ``batch`` holds
 the tensors produced by :mod:`herbert_nn.data.dataset` (with or without a
 window dimension, depending on the model) and ``PolicyOutput`` is a dict
-with keys ``"mouse"``, ``"discrete"``, ``"block_placement"``.
+with keys ``"mouse"``, ``"discrete"``, ``"block_placement"``, ``"movement"``.
 """
 
 from __future__ import annotations
@@ -20,17 +20,19 @@ from torch import nn
 
 
 class PolicyOutput(TypedDict):
-    """Raw (pre-activation) outputs of the three shared heads.
+    """Raw (pre-activation) outputs of the four shared heads.
 
     Keys:
         mouse: ``[batch, 2]`` -- raw regression output for (d_yaw, d_pitch).
         discrete: ``[batch, 4]`` -- raw logits for (jump, sneak, attack, place).
         block_placement: ``[batch, block_type_vocab_size]`` -- raw logits.
+        movement: ``[batch, 2]`` -- raw regression output for (forward, strafe).
     """
 
     mouse: torch.Tensor
     discrete: torch.Tensor
     block_placement: torch.Tensor
+    movement: torch.Tensor
 
 
 @dataclass(frozen=True)

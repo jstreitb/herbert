@@ -102,3 +102,8 @@ NUM_DISCRETE_ACTIONS: int = len(DISCRETE_ACTION_NAMES)
 
 #: Dimensionality of the MouseHead regression target (d_yaw, d_pitch).
 MOUSE_TARGET_DIM: int = 2
+
+#: Names (and order) of the two ternary movement axes predicted by MovementHead.
+MOVEMENT_AXIS_NAMES: list[str] = ["forward", "strafe"]
+#: Dimensionality of the MovementHead regression target (forward, strafe), each in {-1, 0, 1}.
+MOVEMENT_TARGET_DIM: int = 2

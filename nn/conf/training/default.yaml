@@ -25,11 +25,12 @@ amp: true
 early_stopping_patience: 8
 early_stopping_min_delta: 1.0e-4
 
-# Composite loss: per-head weights and the Huber loss delta for MouseHead.
+# Composite loss: per-head weights and the Huber loss delta for MouseHead/MovementHead.
 loss_weights:
   mouse: 1.0
   discrete: 1.0
   block_placement: 1.0
+  movement: 1.0
 huber_delta: 1.0
 
 # How often (in optimizer steps) to write scalars to TensorBoard.

@@ -69,11 +69,14 @@ support online-mode auth.
 
 ## `/nn`'s modeling limitations
 
-`herbert_nn`'s own known limitations (movement `forward`/`strafe` not
-modeled as an RL output head, `attack_target_type` and `place_x,y,z` not
-modeled as prediction targets, single-player behavioral-cloning
-generalization concerns) are documented in the "Known limitations" section
-of `nn/README.md` and are not duplicated here.
+`herbert_nn`'s own known limitations (`attack_target_type` and
+`place_x,y,z` not modeled as prediction targets -- they can't be, since
+neither is an independently controllable bot action; single-player
+behavioral-cloning generalization concerns) are documented in the "Known
+limitations" section of `nn/README.md` and are not duplicated here.
+Movement (`forward`/`strafe`) *was* in this list previously; it's now
+modeled by `MovementHead` and spliced into `/rl`'s PPO warm start the same
+way `MouseHead`/`DiscreteHead` already were.
 
 ## `rl/bridge`'s JS test suite covers pure logic only
 

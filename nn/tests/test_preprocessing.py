@@ -105,6 +105,7 @@ def _make_tensors(num_rows: int, feature_dim: int = 3) -> dict[str, torch.Tensor
         "discrete_target": torch.zeros(num_rows, 4),
         "place_block_type": torch.zeros(num_rows, dtype=torch.int64),
         "place_mask": torch.zeros(num_rows),
+        "movement_target": torch.zeros(num_rows, 2),
         "tick": torch.arange(num_rows, dtype=torch.int64),
     }
 

@@ -8,7 +8,9 @@
   vocabulary, masked to only contribute on ticks where
   ``input.place_occurred`` was true (via ``place_mask``); ticks with no
   place event contribute 0 to this head's loss.
-* :class:`CompositeLoss` -- the weighted sum of the three, with weights
+* :class:`MovementHeadLoss` -- Huber/SmoothL1 regression loss on
+  ``(forward, strafe)``, unmasked (recorded on every tick).
+* :class:`CompositeLoss` -- the weighted sum of the four, with weights
   supplied via the Hydra training config.
 """
 
@@ -27,6 +29,7 @@ class LossBreakdown(TypedDict):
     mouse: torch.Tensor
     discrete: torch.Tensor
     block_placement: torch.Tensor
+    movement: torch.Tensor
 
 
 class MouseHeadLoss(nn.Module):
@@ -48,6 +51,37 @@ class MouseHeadLoss(nn.Module):
         Args:
             pred: Predicted ``(d_yaw, d_pitch)``, shape ``[batch, 2]``.
             target: Ground-truth ``(d_yaw, d_pitch)``, shape ``[batch, 2]``.
+
+        Returns:
+            A scalar loss tensor.
+        """
+        return self.loss_fn(pred, target)
+
+
+class MovementHeadLoss(nn.Module):
+    """Huber loss for the movement-axis regression head.
+
+    Reuses the same ``huber_delta`` hyperparameter as :class:`MouseHeadLoss` rather than
+    introducing a second one -- both heads regress against small bounded targets, so a
+    shared delta is a reasonable default.
+    """
+
+    def __init__(self, huber_delta: float = 1.0) -> None:
+        """Initialize the loss.
+
+        Args:
+            huber_delta: Threshold at which the Huber loss transitions from quadratic to
+                linear (``nn.HuberLoss``'s ``delta`` parameter).
+        """
+        super().__init__()
+        self.loss_fn = nn.HuberLoss(delta=huber_delta, reduction="mean")
+
+    def forward(self, pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+        """Compute the mean Huber loss over the batch.
+
+        Args:
+            pred: Predicted ``(forward, strafe)``, shape ``[batch, 2]``.
+            target: Ground-truth ``(forward, strafe)``, shape ``[batch, 2]``.
 
         Returns:
             A scalar loss tensor.
@@ -130,6 +164,7 @@ class CompositeLoss(nn.Module):
         mouse_weight: float = 1.0,
         discrete_weight: float = 1.0,
         block_placement_weight: float = 1.0,
+        movement_weight: float = 1.0,
         huber_delta: float = 1.0,
     ) -> None:
         """Initialize the composite loss.
@@ -138,15 +173,19 @@ class CompositeLoss(nn.Module):
             mouse_weight: Weight applied to the mouse-movement head's loss in the total sum.
             discrete_weight: Weight applied to the discrete-action head's loss.
             block_placement_weight: Weight applied to the block-placement head's loss.
-            huber_delta: Passed through to :class:`MouseHeadLoss`'s ``huber_delta``.
+            movement_weight: Weight applied to the movement head's loss.
+            huber_delta: Passed through to :class:`MouseHeadLoss`'s and
+                :class:`MovementHeadLoss`'s ``huber_delta``.
         """
         super().__init__()
         self.mouse_weight = mouse_weight
         self.discrete_weight = discrete_weight
         self.block_placement_weight = block_placement_weight
+        self.movement_weight = movement_weight
         self.mouse_loss = MouseHeadLoss(huber_delta=huber_delta)
         self.discrete_loss = DiscreteHeadLoss()
         self.block_placement_loss = BlockPlacementHeadLoss()
+        self.movement_loss = MovementHeadLoss(huber_delta=huber_delta)
 
     def forward(
         self,
@@ -157,10 +196,10 @@ class CompositeLoss(nn.Module):
 
         Args:
             predictions: Model output dict with keys ``mouse``, ``discrete``,
-                ``block_placement`` (see
+                ``block_placement``, ``movement`` (see
                 :class:`herbert_nn.models.base.PolicyOutput`).
             targets: Batch dict with keys ``mouse_target``, ``discrete_target``,
-                ``place_block_type``, ``place_mask`` (see
+                ``place_block_type``, ``place_mask``, ``movement_target`` (see
                 :mod:`herbert_nn.data.dataset`).
 
         Returns:
@@ -176,11 +215,19 @@ class CompositeLoss(nn.Module):
             targets["place_block_type"],
             targets["place_mask"],
         )
+        movement = self.movement_loss(
+            predictions["movement"], targets["movement_target"]
+        )
         total = (
             self.mouse_weight * mouse
             + self.discrete_weight * discrete
             + self.block_placement_weight * block_placement
+            + self.movement_weight * movement
         )
         return LossBreakdown(
-            total=total, mouse=mouse, discrete=discrete, block_placement=block_placement
+            total=total,
+            mouse=mouse,
+            discrete=discrete,
+            block_placement=block_placement,
+            movement=movement,
         )

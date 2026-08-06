@@ -12,7 +12,11 @@ from __future__ import annotations
 import torch
 from torch import nn
 
-from herbert_nn.constants import MOUSE_TARGET_DIM, NUM_DISCRETE_ACTIONS
+from herbert_nn.constants import (
+    MOUSE_TARGET_DIM,
+    MOVEMENT_TARGET_DIM,
+    NUM_DISCRETE_ACTIONS,
+)
 
 
 class MouseHead(nn.Module):
@@ -26,6 +30,37 @@ class MouseHead(nn.Module):
         """
         super().__init__()
         self.linear = nn.Linear(trunk_dim, MOUSE_TARGET_DIM)
+
+    def forward(self, trunk_output: torch.Tensor) -> torch.Tensor:
+        """Compute the raw (unnormalized) regression output.
+
+        Args:
+            trunk_output: Trunk's final hidden vector, shape ``[batch, trunk_dim]``.
+
+        Returns:
+            Raw regression output, shape ``[batch, 2]``.
+        """
+        return self.linear(trunk_output)
+
+
+class MovementHead(nn.Module):
+    """Continuous regression head for movement axes (``forward``, ``strafe``), each in {-1, 0, 1}.
+
+    Architecturally identical to :class:`MouseHead` (a single linear regression layer,
+    trained with a Huber loss against the raw ternary target) rather than a 3-way softmax
+    classifier -- this lets its weights splice directly into `/rl`'s PPO ``action_net``
+    rows the same way ``MouseHead``'s already do, with no probability-to-Gaussian-mean
+    reconciliation needed (see ``rl/src/herbert_rl/policy/checkpoint_adapter.py``).
+    """
+
+    def __init__(self, trunk_dim: int) -> None:
+        """Initialize the head.
+
+        Args:
+            trunk_dim: Size of the trunk's final hidden vector this head consumes.
+        """
+        super().__init__()
+        self.linear = nn.Linear(trunk_dim, MOVEMENT_TARGET_DIM)
 
     def forward(self, trunk_output: torch.Tensor) -> torch.Tensor:
         """Compute the raw (unnormalized) regression output.

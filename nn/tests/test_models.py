@@ -81,6 +81,7 @@ def test_mlp_policy_forward_shapes() -> None:
         5,
         _DATA_META.place_block_type_vocab_size,
     )
+    assert output["movement"].shape == (5, 2)
 
 
 def test_gru_policy_forward_shapes() -> None:
@@ -93,6 +94,7 @@ def test_gru_policy_forward_shapes() -> None:
         5,
         _DATA_META.place_block_type_vocab_size,
     )
+    assert output["movement"].shape == (5, 2)
 
 
 def test_mlp_policy_backward_pass_produces_gradients() -> None:
@@ -103,6 +105,7 @@ def test_mlp_policy_backward_pass_produces_gradients() -> None:
         output["mouse"].sum()
         + output["discrete"].sum()
         + output["block_placement"].sum()
+        + output["movement"].sum()
     )
     loss.backward()
     grad_norms = [
@@ -120,6 +123,7 @@ def test_gru_policy_backward_pass_produces_gradients() -> None:
         output["mouse"].sum()
         + output["discrete"].sum()
         + output["block_placement"].sum()
+        + output["movement"].sum()
     )
     loss.backward()
     grad_norms = [

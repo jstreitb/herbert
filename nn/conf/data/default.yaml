@@ -1,0 +1,32 @@
+# Preprocessing / data config group. Field names must match
+# herbert_nn.data.config.PreprocessConfig exactly (constructed via
+# `PreprocessConfig(**OmegaConf.to_container(cfg.data))`).
+
+# Directory containing raw *.jsonl session log files produced by /mod.
+raw_dir: data/raw
+
+# Root directory under which content-hashed preprocessing caches are written.
+cache_dir: data/cache
+
+# GRU sliding-window length (in ticks) and stride between window starts.
+window_length: 32
+window_stride: 1
+
+# Session-level split ratios (must sum to 1.0) and the seed controlling the shuffle.
+train_ratio: 0.8
+val_ratio: 0.1
+test_ratio: 0.1
+split_seed: 42
+
+# Expected block_grid dimensions. Leave null to auto-adopt the shape observed
+# on the first tick of the first session encountered (and enforce it for
+# every other tick/session in the dataset).
+block_grid_width: null
+block_grid_height: null
+block_grid_depth: null
+
+# Caps on open-vocabulary categorical fields (values beyond the cap, ranked
+# by training-split frequency, are folded into <UNK>).
+item_type_vocab_size: 128
+kit_type_vocab_size: 32
+place_block_type_vocab_size: 32

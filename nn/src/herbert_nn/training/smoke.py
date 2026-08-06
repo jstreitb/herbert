@@ -106,6 +106,7 @@ class SyntheticDataset(Dataset):
                 0, self.data_meta.place_block_type_vocab_size, (1,), generator=gen
             ).squeeze(0),
             "place_mask": (torch.rand(1, generator=gen) > 0.5).float().squeeze(0),
+            "movement_target": (torch.randint(0, 3, (2,), generator=gen) - 1).float(),
         }
         return sample
 

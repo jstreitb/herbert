@@ -17,7 +17,9 @@ env/
 ENV/
 
 # --- Data & experiment artifacts ---
-data/
+# Anchored to the nn/ root: unanchored `data/` also matched src/herbert_nn/data/,
+# the actual Python source package, silently excluding it from version control.
+/data/
 runs/
 cache/
 *.pt

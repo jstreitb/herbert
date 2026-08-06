@@ -14,10 +14,11 @@ Architecture, mapped onto SB3's `ActorCriticPolicy` building blocks:
   spliced directly into `action_net.weight` (shaped `[8, trunk_dim]`) without any dimension
   mismatch.
 - **action_net**: SB3's standard `Box(8,)` Gaussian mean layer (see `env/action_wrapper.py` for
-  the 8-dim encoding). Rows 2-5 (jump/sneak/attack/place) and 6-7 (d_yaw/d_pitch) are overwritten
-  with the pretrained `DiscreteHead`/`MouseHead` weights after construction; rows 0-1
-  (move_forward/strafe) are left at SB3's default init, since `/nn` never modeled movement (see
-  `nn/README.md`'s "Known limitations").
+  the 8-dim encoding). Rows 0-1 (move_forward/strafe), 2-5 (jump/sneak/attack/place), and 6-7
+  (d_yaw/d_pitch) are all overwritten with the pretrained `MovementHead`/`DiscreteHead`/
+  `MouseHead` weights after construction -- only rows with no BC equivalent in the loaded
+  checkpoint (e.g. a checkpoint trained before `/nn` added `MovementHead`) stay at SB3's
+  default init.
 - **value_net**: SB3's standard fresh `Linear(trunk_dim, 1)` -- the new value head, with no BC
   equivalent to inherit (behavioral cloning never estimated a value function).
 
@@ -42,6 +43,7 @@ from torch import nn
 from herbert_rl.policy.checkpoint_adapter import (
     DISCRETE_ACTION_NET_ROWS,
     MOUSE_ACTION_NET_ROWS,
+    MOVEMENT_ACTION_NET_ROWS,
     LoadedBackbone,
 )
 
@@ -159,4 +161,15 @@ class HerbertRLPolicy(ActorCriticPolicy):
                 logger.info(
                     "Spliced pretrained MouseHead weights into action_net rows %s.",
                     MOUSE_ACTION_NET_ROWS,
+                )
+            if heads.movement_weight is not None and heads.movement_bias is not None:
+                self.action_net.weight[MOVEMENT_ACTION_NET_ROWS].copy_(
+                    heads.movement_weight
+                )
+                self.action_net.bias[MOVEMENT_ACTION_NET_ROWS].copy_(
+                    heads.movement_bias
+                )
+                logger.info(
+                    "Spliced pretrained MovementHead weights into action_net rows %s.",
+                    MOVEMENT_ACTION_NET_ROWS,
                 )

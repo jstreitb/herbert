@@ -57,14 +57,15 @@ _FEATURE_KEYS = (
 class SessionPredictions(TypedDict):
     """Per-tick predictions for one session, as produced by :func:`_predict_mlp`/:func:`_predict_gru`.
 
-    ``mouse``/``discrete_prob`` are always fully populated (NaN-filled for GRU ticks with
-    no valid preceding window). ``block_logits`` is ``None`` only when a GRU session has no
-    ticks long enough to form a single window (see :func:`_predict_gru`).
+    ``mouse``/``discrete_prob``/``movement`` are always fully populated (NaN-filled for GRU
+    ticks with no valid preceding window). ``block_logits`` is ``None`` only when a GRU
+    session has no ticks long enough to form a single window (see :func:`_predict_gru`).
     """
 
     mouse: np.ndarray
     discrete_prob: np.ndarray
     block_logits: np.ndarray | None
+    movement: np.ndarray
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
@@ -103,6 +104,7 @@ def _predict_mlp(
         "mouse": output["mouse"].cpu().numpy(),
         "discrete_prob": torch.sigmoid(output["discrete"]).cpu().numpy(),
         "block_logits": output["block_placement"].cpu().numpy(),
+        "movement": output["movement"].cpu().numpy(),
     }
 
 
@@ -123,6 +125,7 @@ def _predict_gru(
     discrete_prob = np.full(
         (num_ticks, len(DISCRETE_ACTION_NAMES)), np.nan, dtype=np.float32
     )
+    movement = np.full((num_ticks, 2), np.nan, dtype=np.float32)
 
     valid_ends = list(range(window_length - 1, num_ticks))
     if not valid_ends:
@@ -131,7 +134,12 @@ def _predict_gru(
             num_ticks,
             window_length,
         )
-        return {"mouse": mouse, "discrete_prob": discrete_prob, "block_logits": None}
+        return {
+            "mouse": mouse,
+            "discrete_prob": discrete_prob,
+            "block_logits": None,
+            "movement": movement,
+        }
 
     windows = {
         key: torch.stack(
@@ -144,15 +152,18 @@ def _predict_gru(
     pred_mouse = output["mouse"].cpu().numpy()
     pred_discrete = torch.sigmoid(output["discrete"]).cpu().numpy()
     pred_block = output["block_placement"].cpu().numpy()
+    pred_movement = output["movement"].cpu().numpy()
     block_logits = np.full((num_ticks, pred_block.shape[1]), np.nan, dtype=np.float32)
     for i, end in enumerate(valid_ends):
         mouse[end] = pred_mouse[i]
         discrete_prob[end] = pred_discrete[i]
         block_logits[end] = pred_block[i]
+        movement[end] = pred_movement[i]
     return {
         "mouse": mouse,
         "discrete_prob": discrete_prob,
         "block_logits": block_logits,
+        "movement": movement,
     }
 
 
@@ -222,6 +233,10 @@ def _write_csv(
         "pred_d_yaw",
         "actual_d_pitch",
         "pred_d_pitch",
+        "actual_forward",
+        "pred_forward",
+        "actual_strafe",
+        "pred_strafe",
         *[f"actual_{name}" for name in DISCRETE_ACTION_NAMES],
         *[f"pred_{name}_prob" for name in DISCRETE_ACTION_NAMES],
         "actual_place_block_type",
@@ -238,6 +253,10 @@ def _write_csv(
                 "pred_d_yaw": preds["mouse"][i, 0],
                 "actual_d_pitch": raw_arrays.mouse_target[i, 1],
                 "pred_d_pitch": preds["mouse"][i, 1],
+                "actual_forward": raw_arrays.movement_target[i, 0],
+                "pred_forward": preds["movement"][i, 0],
+                "actual_strafe": raw_arrays.movement_target[i, 1],
+                "pred_strafe": preds["movement"][i, 1],
                 "actual_place_block_type": raw_arrays.place_block_type_raw[i] or "",
             }
             for j, name in enumerate(DISCRETE_ACTION_NAMES):
@@ -262,7 +281,7 @@ def _write_figure(
     session_id: str,
 ) -> None:
     ticks = [r.tick for r in records]
-    fig, axes = plt.subplots(3, 1, figsize=(12, 9), sharex=True)
+    fig, axes = plt.subplots(4, 1, figsize=(12, 12), sharex=True)
 
     axes[0].plot(ticks, raw_arrays.mouse_target[:, 0], label="actual d_yaw", alpha=0.7)
     axes[0].plot(
@@ -295,8 +314,23 @@ def _write_figure(
             label=f"actual {name}",
         )
     axes[2].set_ylabel("action probability / actual (markers)")
-    axes[2].set_xlabel("tick")
     axes[2].legend(loc="upper right", fontsize="x-small", ncol=2)
+
+    axes[3].plot(
+        ticks, raw_arrays.movement_target[:, 0], label="actual forward", alpha=0.7
+    )
+    axes[3].plot(
+        ticks, preds["movement"][:, 0], label="pred forward", alpha=0.7, linestyle="--"
+    )
+    axes[3].plot(
+        ticks, raw_arrays.movement_target[:, 1], label="actual strafe", alpha=0.7
+    )
+    axes[3].plot(
+        ticks, preds["movement"][:, 1], label="pred strafe", alpha=0.7, linestyle="--"
+    )
+    axes[3].set_ylabel("movement (-1/0/1)")
+    axes[3].set_xlabel("tick")
+    axes[3].legend(loc="upper right", fontsize="x-small", ncol=2)
 
     fig.tight_layout()
     fig.savefig(fig_path, dpi=150)

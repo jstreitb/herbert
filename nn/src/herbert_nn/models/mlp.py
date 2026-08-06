@@ -2,7 +2,7 @@
 """MLPPolicy: the single-tick baseline policy.
 
 Feeds one tick's encoded feature vector through a plain feed-forward trunk
-and the three shared output heads. Fastest to train; no notion of
+and the four shared output heads. Fastest to train; no notion of
 history/timing -- use :class:`herbert_nn.models.gru.GRUPolicy` to capture
 sequential structure.
 """
@@ -14,7 +14,12 @@ from torch import nn
 
 from herbert_nn.models.base import DataMeta, PolicyOutput
 from herbert_nn.models.encoder import FeatureEncoder
-from herbert_nn.models.heads import BlockPlacementHead, DiscreteHead, MouseHead
+from herbert_nn.models.heads import (
+    BlockPlacementHead,
+    DiscreteHead,
+    MouseHead,
+    MovementHead,
+)
 
 
 class MLPPolicy(nn.Module):
@@ -70,6 +75,7 @@ class MLPPolicy(nn.Module):
         self.block_placement_head = BlockPlacementHead(
             trunk_dim, data_meta.place_block_type_vocab_size
         )
+        self.movement_head = MovementHead(trunk_dim)
 
     def forward(self, batch: dict[str, torch.Tensor]) -> PolicyOutput:
         """Run a forward pass.
@@ -96,4 +102,5 @@ class MLPPolicy(nn.Module):
             mouse=self.mouse_head(trunk_out),
             discrete=self.discrete_head(trunk_out),
             block_placement=self.block_placement_head(trunk_out),
+            movement=self.movement_head(trunk_out),
         )

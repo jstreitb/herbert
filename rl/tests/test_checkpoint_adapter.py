@@ -41,6 +41,8 @@ def _write_synthetic_nn_checkpoint(path, model_cfg, data_meta: RLDataMeta):
     state_dict["discrete_head.linear.bias"] = torch.randn(4)
     state_dict["block_placement_head.linear.weight"] = torch.randn(6, trunk_dim)
     state_dict["block_placement_head.linear.bias"] = torch.randn(6)
+    state_dict["movement_head.linear.weight"] = torch.randn(2, trunk_dim)
+    state_dict["movement_head.linear.bias"] = torch.randn(2)
 
     payload = {
         "model_state_dict": state_dict,
@@ -106,6 +108,13 @@ def test_load_nn_checkpoint_extracts_pretrained_head_weights(tmp_path):
     assert torch.equal(
         loaded.pretrained_heads.discrete_bias, state_dict["discrete_head.linear.bias"]
     )
+    assert torch.equal(
+        loaded.pretrained_heads.movement_weight,
+        state_dict["movement_head.linear.weight"],
+    )
+    assert torch.equal(
+        loaded.pretrained_heads.movement_bias, state_dict["movement_head.linear.bias"]
+    )
 
 
 def test_build_fresh_backbone_has_no_pretrained_heads():
@@ -119,3 +128,4 @@ def test_build_fresh_backbone_has_no_pretrained_heads():
     assert loaded.checkpoint_path is None
     assert loaded.pretrained_heads.mouse_weight is None
     assert loaded.pretrained_heads.discrete_weight is None
+    assert loaded.pretrained_heads.movement_weight is None

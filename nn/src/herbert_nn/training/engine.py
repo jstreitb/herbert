@@ -22,7 +22,13 @@ from herbert_nn.models.losses import CompositeLoss
 
 logger = logging.getLogger(__name__)
 
-_TARGET_KEYS = ("mouse_target", "discrete_target", "place_block_type", "place_mask")
+_TARGET_KEYS = (
+    "mouse_target",
+    "discrete_target",
+    "place_block_type",
+    "place_mask",
+    "movement_target",
+)
 
 
 def move_batch_to_device(
@@ -40,6 +46,7 @@ class EpochStats:
     mouse: float = 0.0
     discrete: float = 0.0
     block_placement: float = 0.0
+    movement: float = 0.0
     num_batches: int = 0
     num_samples: int = 0
 
@@ -56,6 +63,7 @@ class EpochStats:
         self.block_placement += (
             float(breakdown["block_placement"].detach().item()) * batch_size
         )
+        self.movement += float(breakdown["movement"].detach().item()) * batch_size
         self.num_batches += 1
         self.num_samples += batch_size
 
@@ -67,6 +75,7 @@ class EpochStats:
             "mouse": self.mouse / n,
             "discrete": self.discrete / n,
             "block_placement": self.block_placement / n,
+            "movement": self.movement / n,
         }
 
 
@@ -107,7 +116,8 @@ def run_epoch(
             ``False``, run in ``eval()`` mode under ``torch.no_grad()``.
 
     Returns:
-        Dict of epoch-averaged losses: ``{"total", "mouse", "discrete", "block_placement"}``.
+        Dict of epoch-averaged losses:
+        ``{"total", "mouse", "discrete", "block_placement", "movement"}``.
     """
     if is_train and optimizer is None:
         raise ValueError("optimizer is required when is_train=True")

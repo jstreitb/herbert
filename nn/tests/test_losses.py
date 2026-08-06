@@ -11,6 +11,7 @@ from herbert_nn.models.losses import (
     CompositeLoss,
     DiscreteHeadLoss,
     MouseHeadLoss,
+    MovementHeadLoss,
 )
 
 
@@ -18,6 +19,15 @@ def test_mouse_head_loss_matches_manual_huber() -> None:
     pred = torch.tensor([[1.0, 2.0], [0.0, 0.0]])
     target = torch.tensor([[0.0, 0.0], [0.0, 5.0]])
     loss_module = MouseHeadLoss(huber_delta=1.0)
+    actual = loss_module(pred, target)
+    expected = nn.HuberLoss(delta=1.0, reduction="mean")(pred, target)
+    assert torch.allclose(actual, expected)
+
+
+def test_movement_head_loss_matches_manual_huber() -> None:
+    pred = torch.tensor([[1.0, -1.0], [0.0, 0.0]])
+    target = torch.tensor([[0.0, 0.0], [1.0, -1.0]])
+    loss_module = MovementHeadLoss(huber_delta=1.0)
     actual = loss_module(pred, target)
     expected = nn.HuberLoss(delta=1.0, reduction="mean")(pred, target)
     assert torch.allclose(actual, expected)
@@ -69,18 +79,21 @@ def test_composite_loss_equals_weighted_sum_of_individual_heads() -> None:
         "mouse": torch.randn(batch_size, 2),
         "discrete": torch.randn(batch_size, 4),
         "block_placement": torch.randn(batch_size, vocab_size),
+        "movement": torch.randn(batch_size, 2),
     }
     targets = {
         "mouse_target": torch.randn(batch_size, 2),
         "discrete_target": (torch.rand(batch_size, 4) > 0.5).float(),
         "place_block_type": torch.randint(0, vocab_size, (batch_size,)),
         "place_mask": (torch.rand(batch_size) > 0.5).float(),
+        "movement_target": torch.randint(-1, 2, (batch_size, 2)).float(),
     }
-    weights = {"mouse": 2.0, "discrete": 0.5, "block_placement": 3.0}
+    weights = {"mouse": 2.0, "discrete": 0.5, "block_placement": 3.0, "movement": 1.5}
     composite = CompositeLoss(
         mouse_weight=weights["mouse"],
         discrete_weight=weights["discrete"],
         block_placement_weight=weights["block_placement"],
+        movement_weight=weights["movement"],
     )
     breakdown = composite(predictions, targets)
 
@@ -88,6 +101,7 @@ def test_composite_loss_equals_weighted_sum_of_individual_heads() -> None:
         weights["mouse"] * breakdown["mouse"]
         + weights["discrete"] * breakdown["discrete"]
         + weights["block_placement"] * breakdown["block_placement"]
+        + weights["movement"] * breakdown["movement"]
     )
     assert torch.allclose(breakdown["total"], expected_total)
 
@@ -98,12 +112,14 @@ def test_composite_loss_is_differentiable_end_to_end() -> None:
         "mouse": torch.randn(batch_size, 2, requires_grad=True),
         "discrete": torch.randn(batch_size, 4, requires_grad=True),
         "block_placement": torch.randn(batch_size, vocab_size, requires_grad=True),
+        "movement": torch.randn(batch_size, 2, requires_grad=True),
     }
     targets = {
         "mouse_target": torch.randn(batch_size, 2),
         "discrete_target": (torch.rand(batch_size, 4) > 0.5).float(),
         "place_block_type": torch.randint(0, vocab_size, (batch_size,)),
         "place_mask": torch.ones(batch_size),
+        "movement_target": torch.randint(-1, 2, (batch_size, 2)).float(),
     }
     composite = CompositeLoss()
     breakdown = composite(predictions, targets)
@@ -111,3 +127,4 @@ def test_composite_loss_is_differentiable_end_to_end() -> None:
     assert predictions["mouse"].grad is not None
     assert predictions["discrete"].grad is not None
     assert predictions["block_placement"].grad is not None
+    assert predictions["movement"].grad is not None

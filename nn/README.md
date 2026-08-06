@@ -197,10 +197,12 @@ Both `MLPPolicy` and `GRUPolicy` ([`src/herbert_nn/models/`](src/herbert_nn/mode
   type, hotbar slot, opponent held-item category, match kit type) and concatenates them with
   the continuous feature vector (position deltas, velocities, sin/cos-encoded angles, health,
   presence flags for the best-effort-detected opponent/match-context fields, ...).
-- Three output heads on top of the trunk: `MouseHead` (regression: `d_yaw`, `d_pitch`),
-  `DiscreteHead` (binary multi-label: `jump`, `sneak`, `attack`, `place`), and
+- Four output heads on top of the trunk: `MouseHead` (regression: `d_yaw`, `d_pitch`),
+  `DiscreteHead` (binary multi-label: `jump`, `sneak`, `attack`, `place`),
   `BlockPlacementHead` (softmax over the fitted block-type vocabulary, loss-masked to ticks
-  with an active placement event).
+  with an active placement event), and `MovementHead` (regression: `forward`, `strafe`, each
+  in `{-1, 0, 1}` -- a regression head rather than a classifier so its weights splice
+  directly into `/rl`'s PPO action head the same way `MouseHead`'s already do).
 
 `MLPPolicy` runs the encoder once per single tick. `GRUPolicy` runs the encoder over every
 tick in a sliding window, feeds the sequence through a `nn.GRU`, and heads off the final
@@ -272,6 +274,9 @@ sessions and training for a modest number of epochs, the `inspect` replay output
 - Predicted `place` probability rising in bridging situations (e.g. player moving forward
   over void with a bridging block selected), and `BlockPlacementHead`'s top-1/top-3 predicted
   block type matching what the player actually placed on those ticks.
+- Predicted `forward`/`strafe` (`MovementHead`) roughly tracking bridging-vs-retreating
+  behavior, measured via `evaluate.py`'s bucketed-accuracy metric (raw regression output
+  thresholded to `{-1, 0, 1}`, matching how `/rl` interprets the same action dimensions).
 - Validation composite loss decreasing smoothly and diverging from training loss only mildly
   (severe divergence suggests overfitting to one player's idiosyncrasies faster than useful
   patterns -- try more sessions, a smaller model, or stronger loss weighting on the
@@ -284,14 +289,13 @@ Watch F1 and ROC-AUC, not accuracy, for these.
 
 ## Known limitations / natural next steps
 
-- **Movement (`input.forward`/`input.strafe`) is not currently a modeled output head.** The
-  schema records them (ternary `-1`/`0`/`1`), and they're fully validated/parsed, but the
-  three required heads (`MouseHead`, `DiscreteHead`, `BlockPlacementHead`) as specified cover
-  aim, jump/sneak/attack/place, and block type -- not movement direction. A natural extension
-  is a `MovementHead` with per-axis 3-way cross-entropy; it would need its own loss-weight
-  config entry and isn't wired up here to avoid guessing at an unspecified design.
-- **`input.attack.target_type` and `input.place.{x,y,z}`** are parsed and available in the
-  cached data but likewise not modeled as prediction targets today.
+- **`input.attack_target_type` and `input.place_{x,y,z}`** are parsed and available in the
+  cached data but not modeled as prediction targets. They can't be, in any way that would
+  change bot behavior: `/rl`'s bridge command protocol (see
+  `rl/src/herbert_rl/env/ipc.py`'s `ActionCommand`) has no field for "which entity type to
+  hit" or "which grid cell to place at" -- both are purely observational echoes of what
+  happened as a side effect of aim (`MouseHead`) plus the existing `attack`/`place` flags
+  (`DiscreteHead`), never independently controllable actions.
 - Single-player behavioral cloning will pick up that player's idiosyncrasies as much as
   general "Bridge skill" -- more sessions from more players would be needed to test whether
   learned behavior generalizes.

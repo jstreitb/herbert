@@ -9,9 +9,9 @@ submodule attribute path (e.g. ``"encoder.block_cell_embedding.weight"``, ``"gru
 ``"trunk.0.weight"``). By rebuilding an architecturally identical module tree here -- same
 submodule names, same layer order, same shapes -- `policy/checkpoint_adapter.py` can load a `/nn`
 checkpoint's weights directly via `nn.Module.load_state_dict(..., strict=False)` (the ``False``
-tolerates the checkpoint's `mouse_head`/`discrete_head`/`block_placement_head` keys, which this
-module intentionally omits -- see `checkpoint_adapter.py` for where those get spliced into the
-PPO action head instead of being loaded as ordinary submodules).
+tolerates the checkpoint's `mouse_head`/`discrete_head`/`block_placement_head`/`movement_head`
+keys, which this module intentionally omits -- see `checkpoint_adapter.py` for where those get
+spliced into the PPO action head instead of being loaded as ordinary submodules).
 
 If `/nn`'s encoder/trunk architecture changes, this file must be updated by hand to match, or
 checkpoint loading will silently drop weights (`load_state_dict(strict=False)` only warns, it

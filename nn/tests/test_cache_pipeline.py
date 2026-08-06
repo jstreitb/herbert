@@ -11,10 +11,13 @@ from pathlib import Path
 
 import pytest
 
+from factories import TEST_BLOCK_GRID_SHAPE, make_record
 from herbert_nn.data.cache import build_or_load_cache
 from herbert_nn.data.config import PreprocessConfig
 from herbert_nn.data.dataset import build_dataset
+from herbert_nn.data.features import encode_session_raw
 from herbert_nn.schemas.registry import SchemaVersionError
+from herbert_nn.schemas.v1_0_0 import TickRecordV1
 
 
 def _base_config(raw_dir: Path, cache_dir: Path, **overrides) -> PreprocessConfig:
@@ -137,3 +140,26 @@ def test_window_and_tick_datasets_buildable_from_cache(
     assert len(window_dataset) > 0
     window_sample = window_dataset[0]
     assert window_sample["continuous"].shape[0] == 8
+
+
+def test_cache_invalidated_by_feature_schema_version_bump(
+    raw_session_dir: Path, tmp_path: Path
+) -> None:
+    cache_dir = tmp_path / "cache"
+    config_a = _base_config(raw_session_dir, cache_dir, feature_schema_version=2)
+    config_b = _base_config(raw_session_dir, cache_dir, feature_schema_version=3)
+    bundle_a = build_or_load_cache(config_a)
+    bundle_b = build_or_load_cache(config_b)
+    assert bundle_a.cache_path != bundle_b.cache_path
+
+
+def test_movement_target_preserves_raw_ternary_boundary_values() -> None:
+    record_dict = make_record(0, place_active=False)
+    record_dict["input"]["forward"] = -1
+    record_dict["input"]["strafe"] = 1
+    record = TickRecordV1(**record_dict)
+
+    arrays = encode_session_raw([record], "sid", TEST_BLOCK_GRID_SHAPE)
+
+    # Raw floats, not remapped class indices -- see MovementHead's design rationale.
+    assert arrays.movement_target[0].tolist() == [-1.0, 1.0]
