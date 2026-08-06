@@ -79,6 +79,13 @@ python -m herbert_nn.smoketest   # confirms the full pipeline still runs end-to-
 Herbert is open-source and meant to be picked up by contributors who didn't write the original
 code. PRs are expected to meet the same bar as the rest of the codebase:
 
+> **Using an AI coding assistant?** [AGENTS.md](AGENTS.md) is the machine-readable version of
+> this section — exact formatter/linter settings, the test commands for each component,
+> environment gotchas, and the cross-component invariants that fail silently when broken.
+> Point your tool at it (`CLAUDE.md`, `GEMINI.md`, `.cursorrules`, and
+> `.github/copilot-instructions.md` all redirect there) so its output matches the rest of the
+> codebase.
+
 - **Documentation on every public symbol.** Javadoc for Java (`/mod`), docstrings for Python
   (`/nn`, `/bot`) and JSDoc for any JS/TS tooling. If a reviewer has to ask "what does this do,"
   that's a missing docstring, not a question for the PR thread.

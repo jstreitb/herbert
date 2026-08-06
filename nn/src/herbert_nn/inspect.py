@@ -185,9 +185,13 @@ def main(argv: list[str] | None = None) -> None:
 
     session_path = Path(args.session)
     header, raw_records = load_session(session_path)
-    # `load_session` is version-generic (returns `list[BaseModel]`); this
-    # module only supports schema_version "1.0.0" today, matching
-    # herbert_nn.data.features.encode_session_raw's signature.
+    # `load_session` is version-generic (returns `list[BaseModel]`); every schema version
+    # registered so far (1.0.0, 1.2.0) reuses `TickRecordV1` as its record model (only the
+    # header changed across versions -- see `schemas.v1_2_0`), matching
+    # herbert_nn.data.features.encode_session_raw's signature. If a future schema version
+    # ever changes the per-tick record shape, this cast needs revisiting. This tool always
+    # operates on a single self-contained file and does not reassemble chunked sessions --
+    # pass one chunk (or the pre-split original file, if still on disk) directly.
     session_id: str = getattr(header, "session_id")  # noqa: B009
     records = cast(list[TickRecordV1], raw_records)
     logger.info(

@@ -8,6 +8,12 @@ To add support for a new ``schema_version`` (e.g. ``"1.1.0"``):
    ``TickRecordV1_1_0`` (or similarly named) Pydantic models. Do not import
    from or mutate the previous version's module -- each version module must
    be a fully self-contained, frozen description of that exact wire format.
+   Exception: if a bump changed only the header (not the per-tick record
+   shape), the new version's :class:`SchemaModels` may point its
+   ``record_model`` at the previous version's already-frozen record model
+   instead of duplicating an identical class -- see
+   :mod:`herbert_nn.schemas.v1_2_0` for a worked example, including how to
+   verify "unchanged" before relying on it.
 2. Add one line to :data:`SCHEMA_REGISTRY` below mapping the new version
    string to a :class:`SchemaModels` pointing at the new models.
 
@@ -26,7 +32,7 @@ from typing import TextIO
 
 from pydantic import BaseModel, ValidationError
 
-from herbert_nn.schemas import v1_0_0
+from herbert_nn.schemas import v1_0_0, v1_2_0
 
 PathLike = str | Path
 
@@ -57,6 +63,13 @@ class SchemaModels:
 SCHEMA_REGISTRY: dict[str, SchemaModels] = {
     v1_0_0.SCHEMA_VERSION: SchemaModels(
         header_model=v1_0_0.SessionHeaderV1,
+        record_model=v1_0_0.TickRecordV1,
+    ),
+    v1_2_0.SCHEMA_VERSION: SchemaModels(
+        header_model=v1_2_0.SessionHeaderV1_2_0,
+        # The per-tick record schema is unchanged since 1.0.0 (verified against real 1.2.0
+        # session data) -- see v1_2_0's module docstring for why this reuses
+        # v1_0_0.TickRecordV1 instead of duplicating an identical class.
         record_model=v1_0_0.TickRecordV1,
     ),
 }

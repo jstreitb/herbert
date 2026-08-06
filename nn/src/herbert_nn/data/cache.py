@@ -31,6 +31,7 @@ from typing import Any
 
 import numpy as np
 import torch
+from pydantic import BaseModel
 
 from herbert_nn.data.config import PreprocessConfig
 from herbert_nn.data.features import SessionArrays, encode_session_raw
@@ -161,17 +162,41 @@ def _cache_dir_for(config: PreprocessConfig, config_hash: str) -> Path:
     return Path(config.cache_dir) / config_hash
 
 
+@dataclass
+class _ParsedRawFile:
+    """One raw file's validated header + records, before session/chunk resolution."""
+
+    path: Path
+    header: BaseModel
+    records: list[BaseModel]
+
+
 def _load_all_sessions(
     raw_files: list[Path],
 ) -> tuple[str, dict[str, list]]:
-    """Parse every raw file, returning the shared schema version and per-session records."""
+    """Parse every raw file, returning the shared schema version and per-session records.
+
+    Chunked sessions (schema >= 1.2.0's optional ``chunk_index``/``chunk_total`` header
+    fields; see ``mod/README.md``'s "Chunked uploads") are transparently reassembled here:
+    every raw file belonging to the same ``session_id`` and declaring a ``chunk_total`` is
+    grouped, ordered by ``chunk_index``, and concatenated into one session's tick records
+    -- exactly mirroring how the chunks were split on tick-line boundaries in the first
+    place, so no synthetic stitching logic is needed beyond ordering and concatenation.
+
+    A session whose chunk set is incomplete (fewer files present than its declared
+    ``chunk_total``, e.g. because an upload was interrupted and only some parts have been
+    collected so far) is skipped with a warning rather than an error -- this is a
+    preprocessing *batch job*, not a one-shot validator, so a session that completes later
+    (once the rest of its chunks arrive in ``raw_dir``) is simply picked up on the next run.
+    """
     schema_version: str | None = None
-    sessions: dict[str, list] = {}
+    parsed: list[_ParsedRawFile] = []
     for path in raw_files:
         header, records = load_session(path)
-        # `header`'s concrete type depends on the dispatched schema version;
-        # every version's header model is required to declare these fields
-        # (see herbert_nn.schemas.registry).
+        # `header`'s concrete type depends on the dispatched schema version; every
+        # version's header model is required to declare `schema_version`/`session_id`
+        # (see herbert_nn.schemas.registry), but `chunk_index`/`chunk_total` are only
+        # present from schema 1.2.0 onward, hence the `getattr(..., None)` defaults below.
         this_version: str = getattr(header, "schema_version")  # noqa: B009
         if schema_version is None:
             schema_version = this_version
@@ -180,20 +205,97 @@ def _load_all_sessions(
                 f"Mixed schema versions in {path.parent}: found {schema_version!r} and "
                 f"{this_version!r}. Preprocess each schema version into a separate cache."
             )
-        session_id: str = getattr(header, "session_id")  # noqa: B009
-        if session_id in sessions:
-            raise ValueError(
-                f"Duplicate session_id {session_id!r} encountered in {path} "
-                "(already seen in another raw file)."
-            )
-        if not records:
-            logger.warning(
-                "Session %s (%s) has zero tick records; skipping.", session_id, path
-            )
-            continue
-        sessions[session_id] = records
+        parsed.append(_ParsedRawFile(path=path, header=header, records=records))
     if schema_version is None:
         raise FileNotFoundError("No valid sessions found to preprocess.")
+
+    sessions: dict[str, list] = {}
+    chunk_groups: dict[str, dict[int, _ParsedRawFile]] = {}
+    for item in parsed:
+        session_id: str = getattr(item.header, "session_id")  # noqa: B009
+        chunk_total = getattr(item.header, "chunk_total", None)
+
+        if chunk_total is None:
+            if session_id in chunk_groups:
+                raise ValueError(
+                    f"session_id {session_id!r} appears both as a non-chunked file "
+                    f"(in {item.path}) and as a chunk (in another raw file)."
+                )
+            if session_id in sessions:
+                raise ValueError(
+                    f"Duplicate session_id {session_id!r} encountered in {item.path} "
+                    "(already seen in another raw file)."
+                )
+            if not item.records:
+                logger.warning(
+                    "Session %s (%s) has zero tick records; skipping.",
+                    session_id,
+                    item.path,
+                )
+                continue
+            sessions[session_id] = item.records
+            continue
+
+        if session_id in sessions:
+            raise ValueError(
+                f"session_id {session_id!r} appears both as a non-chunked file and as a "
+                f"chunk (in {item.path})."
+            )
+        chunk_index = getattr(item.header, "chunk_index", None)
+        if chunk_index is None:
+            raise ValueError(
+                f"{item.path}: header declares chunk_total but no chunk_index; "
+                "malformed chunk header."
+            )
+        group = chunk_groups.setdefault(session_id, {})
+        if chunk_index in group:
+            raise ValueError(
+                f"Duplicate chunk_index {chunk_index} for session {session_id!r}: both "
+                f"{group[chunk_index].path} and {item.path} claim it."
+            )
+        group[chunk_index] = item
+
+    for session_id, group in chunk_groups.items():
+        chunk_total = (
+            getattr(  # noqa: B009 -- header type is version-generic, see above
+                next(iter(group.values())).header, "chunk_total"
+            )
+        )
+        mismatched = [
+            it
+            for it in group.values()
+            if getattr(it.header, "chunk_total") != chunk_total  # noqa: B009
+        ]
+        if mismatched:
+            other_total = getattr(mismatched[0].header, "chunk_total")  # noqa: B009
+            raise ValueError(
+                f"session {session_id!r}: chunks disagree on chunk_total (expected "
+                f"{chunk_total}, got {other_total} in {mismatched[0].path})."
+            )
+        if len(group) < chunk_total:
+            missing = sorted(set(range(chunk_total)) - set(group))
+            logger.warning(
+                "Session %s is chunked (chunk_total=%d) but only %d/%d chunks were found "
+                "(missing chunk_index %s); skipping until the rest arrive.",
+                session_id,
+                chunk_total,
+                len(group),
+                chunk_total,
+                missing,
+            )
+            continue
+        merged_records: list = []
+        for idx in range(chunk_total):
+            merged_records.extend(group[idx].records)
+        if not merged_records:
+            logger.warning(
+                "Session %s (all %d chunks) has zero tick records; skipping.",
+                session_id,
+                chunk_total,
+            )
+            continue
+        sessions[session_id] = merged_records
+
     return schema_version, sessions
 
 

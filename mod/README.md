@@ -272,7 +272,7 @@ A chunk's header (e.g. line 1 of `herbert_session_b3a1e6d2-...._part2of3.jsonl`)
 |---|---|---|
 | `schema_version` | string (semver) | Version of the per-tick schema documented below. |
 | `herbert_mod_version` | string | BridgeLogger build version that produced the file. |
-| `session_id` | string (UUID v4) | Also used as the (non-chunked) log filename. Identical across every chunk of a chunked session, letting `/bot` associate chunks with each other (see its "Chunked sessions" section) and `/nn` do the same if it's ever taught to. |
+| `session_id` | string (UUID v4) | Also used as the (non-chunked) log filename. Identical across every chunk of a chunked session, letting `/bot` associate chunks with each other (see its "Chunked sessions" section) and `/nn` reassemble them into one session during preprocessing (ordered by `chunk_index`, see `nn/src/herbert_nn/data/cache.py`). |
 | `recording_start_timestamp` | string (ISO-8601, UTC) | When recording started. |
 | `player_username_hash` | string (64 hex chars) | **SHA-256 hex digest of the player's Minecraft username.** See "Privacy" below — the raw username is never written anywhere else. Always present, regardless of `player_username_display`. |
 | `player_username_display` | string | **Optional, added in schema `1.1.0`.** The player's raw Minecraft username, present **only** if they answered `y` to the session-end "display your username publicly?" chat prompt (see "Session lifecycle & upload flow" above). Omitted entirely (never `null`, never an empty string) whenever they answered `n`, let the prompt time out, or gave invalid input twice. Absent in every `1.0.0` file. |

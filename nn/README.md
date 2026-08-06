@@ -213,17 +213,30 @@ timestep's hidden state.
 `/mod` emits `.jsonl` files whose lines are described by a `schema_version` semver string in
 the header. `herbert_nn.schemas` implements this as a **versioned registry**
 ([`src/herbert_nn/schemas/registry.py`](src/herbert_nn/schemas/registry.py)): each schema
-version gets its own frozen Pydantic-model module (currently only
-[`v1_0_0.py`](src/herbert_nn/schemas/v1_0_0.py)), and `SCHEMA_REGISTRY` maps the version
-string to its models. All parsing goes through `load_session()` /
+version gets its own frozen Pydantic-model module -- currently
+[`v1_0_0.py`](src/herbert_nn/schemas/v1_0_0.py) and
+[`v1_2_0.py`](src/herbert_nn/schemas/v1_2_0.py) (`"1.1.0"` was never independently shipped
+as a live `schema_version`, so there is no `v1_1_0.py`) -- and `SCHEMA_REGISTRY` maps the
+version string to its models. All parsing goes through `load_session()` /
 `get_models_for_version()`, which dispatch on the header's declared version -- so old
 recordings always remain parseable even after the schema evolves.
 
-**To add support for a new version** (e.g. the mod bumps to `"1.1.0"`): create
-`src/herbert_nn/schemas/v1_1_0.py` modeled after `v1_0_0.py` with its own models (never edit
-`v1_0_0.py` itself), then add one line to `SCHEMA_REGISTRY` in `registry.py`. No other code
-needs to change. This is intentionally *not* pre-built for hypothetical future versions --
-only `"1.0.0"` is implemented today.
+`1.2.0`'s per-tick record shape is byte-for-byte identical to `1.0.0`'s (only the header
+gained optional fields), so `v1_2_0.py` reuses `v1_0_0.TickRecordV1` as its record model
+instead of duplicating it -- see that module's docstring for the reasoning and when it's
+safe to do the same for a future version.
+
+**To add support for a new version** (e.g. the mod bumps to `"1.3.0"`): create
+`src/herbert_nn/schemas/v1_3_0.py` modeled after `v1_0_0.py`/`v1_2_0.py` with its own models
+(never edit a previous version's module), then add one line to `SCHEMA_REGISTRY` in
+`registry.py`. No other code needs to change.
+
+**Chunked sessions** (`chunk_index`/`chunk_total` in a `1.2.0`+ header; see
+`mod/README.md`'s "Chunked uploads") are transparently reassembled during preprocessing --
+`data/cache.py`'s `_load_all_sessions` groups every raw file sharing a `session_id`, orders
+them by `chunk_index`, and concatenates their tick records into one session. A session whose
+chunk set is incomplete when preprocessing runs is skipped with a warning, not an error --
+it's picked up automatically once the rest of its chunks land in `raw_dir`.
 
 ## Project layout
 

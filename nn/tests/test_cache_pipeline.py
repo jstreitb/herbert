@@ -7,12 +7,13 @@ fixture (6 sessions x 60 ticks each; see tests/conftest.py).
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
 
-from factories import TEST_BLOCK_GRID_SHAPE, make_record
-from herbert_nn.data.cache import build_or_load_cache
+from factories import TEST_BLOCK_GRID_SHAPE, make_header, make_record
+from herbert_nn.data.cache import _load_all_sessions, build_or_load_cache
 from herbert_nn.data.config import PreprocessConfig
 from herbert_nn.data.dataset import build_dataset
 from herbert_nn.data.features import encode_session_raw
@@ -163,3 +164,114 @@ def test_movement_target_preserves_raw_ternary_boundary_values() -> None:
 
     # Raw floats, not remapped class indices -- see MovementHead's design rationale.
     assert arrays.movement_target[0].tolist() == [-1.0, 1.0]
+
+
+def _write_chunk(
+    path: Path, session_id: str, chunk_index: int, chunk_total: int, ticks: range
+) -> None:
+    header = make_header(
+        session_id=session_id,
+        schema_version="1.2.0",
+        chunk_index=chunk_index,
+        chunk_total=chunk_total,
+    )
+    lines = [json.dumps(header)]
+    lines.extend(json.dumps(make_record(t)) for t in ticks)
+    path.write_text("\n".join(lines) + "\n")
+
+
+def test_chunked_session_reassembled_in_chunk_index_order(tmp_path: Path) -> None:
+    raw_dir = tmp_path / "raw"
+    raw_dir.mkdir()
+    session_id = "chunked-session"
+    # Deliberately write part 2 before part 1 on disk to prove ordering comes from
+    # chunk_index, not file discovery order.
+    _write_chunk(raw_dir / "b_part2of2.jsonl", session_id, 1, 2, range(5, 8))
+    _write_chunk(raw_dir / "a_part1of2.jsonl", session_id, 0, 2, range(0, 5))
+
+    schema_version, sessions = _load_all_sessions(sorted(raw_dir.glob("*.jsonl")))
+
+    assert schema_version == "1.2.0"
+    assert list(sessions.keys()) == [session_id]
+    assert [r.tick for r in sessions[session_id]] == list(range(8))
+
+
+def test_chunked_session_with_missing_chunk_is_skipped_not_errored(
+    tmp_path: Path,
+) -> None:
+    raw_dir = tmp_path / "raw"
+    raw_dir.mkdir()
+    session_id = "incomplete-session"
+    _write_chunk(raw_dir / "part1of2.jsonl", session_id, 0, 2, range(0, 5))
+    # part 2 never arrives -- e.g. its upload failed and hasn't been retried yet.
+
+    _schema_version, sessions = _load_all_sessions(sorted(raw_dir.glob("*.jsonl")))
+
+    assert sessions == {}
+
+
+def test_duplicate_chunk_index_raises(tmp_path: Path) -> None:
+    raw_dir = tmp_path / "raw"
+    raw_dir.mkdir()
+    session_id = "dup-chunk-session"
+    _write_chunk(raw_dir / "a.jsonl", session_id, 0, 2, range(0, 3))
+    _write_chunk(raw_dir / "b.jsonl", session_id, 0, 2, range(3, 6))
+
+    with pytest.raises(ValueError, match="Duplicate chunk_index"):
+        _load_all_sessions(sorted(raw_dir.glob("*.jsonl")))
+
+
+def test_chunks_disagreeing_on_chunk_total_raises(tmp_path: Path) -> None:
+    raw_dir = tmp_path / "raw"
+    raw_dir.mkdir()
+    session_id = "mismatched-session"
+    _write_chunk(raw_dir / "a.jsonl", session_id, 0, 2, range(0, 3))
+    _write_chunk(raw_dir / "b.jsonl", session_id, 1, 3, range(3, 6))
+
+    with pytest.raises(ValueError, match="disagree on chunk_total"):
+        _load_all_sessions(sorted(raw_dir.glob("*.jsonl")))
+
+
+def test_session_id_as_both_chunked_and_nonchunked_raises(tmp_path: Path) -> None:
+    raw_dir = tmp_path / "raw"
+    raw_dir.mkdir()
+    session_id = "ambiguous-session"
+    _write_chunk(raw_dir / "chunk.jsonl", session_id, 0, 2, range(0, 3))
+    (raw_dir / "whole.jsonl").write_text(
+        "\n".join(
+            [
+                json.dumps(make_header(session_id=session_id, schema_version="1.2.0")),
+                json.dumps(make_record(0)),
+            ]
+        )
+        + "\n"
+    )
+
+    with pytest.raises(ValueError, match="appears both as a non-chunked file"):
+        _load_all_sessions(sorted(raw_dir.glob("*.jsonl")))
+
+
+def test_build_cache_reassembles_chunked_session_end_to_end(tmp_path: Path) -> None:
+    raw_dir = tmp_path / "raw"
+    raw_dir.mkdir()
+    for i in range(5):
+        session_id = f"whole-{i:02d}"
+        lines = [json.dumps(make_header(session_id=session_id, schema_version="1.2.0"))]
+        lines.extend(json.dumps(make_record(t)) for t in range(20))
+        (raw_dir / f"{session_id}.jsonl").write_text("\n".join(lines) + "\n")
+    _write_chunk(raw_dir / "chunked_part1of2.jsonl", "chunked-06", 0, 2, range(0, 10))
+    _write_chunk(raw_dir / "chunked_part2of2.jsonl", "chunked-06", 1, 2, range(10, 20))
+
+    config = _base_config(raw_dir, tmp_path / "cache")
+    bundle = build_or_load_cache(config)
+
+    all_ids = (
+        set(bundle.manifest.split_session_ids["train"])
+        | set(bundle.manifest.split_session_ids["val"])
+        | set(bundle.manifest.split_session_ids["test"])
+    )
+    assert "chunked-06" in all_ids
+    total_ticks = sum(bundle.manifest.counts.values())
+    assert (
+        total_ticks == 6 * 20
+    )  # 5 whole sessions + 1 chunked session, all 20 ticks each
